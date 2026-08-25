@@ -153,7 +153,7 @@ final class LWPS_Admin_Controller {
 		$uids      = isset( $data['uids'] ) && is_array( $data['uids'] ) ? $data['uids'] : array();
 		$scope     = isset( $data['scope'] ) && 'all' === sanitize_key( $data['scope'] ) ? 'all' : 'selected';
 		$options   = self::options( $data );
-		return rest_ensure_response( LWPS_Jobs::preview( $uids, $operation, $options, $scope ) );
+		return rest_ensure_response( LWPS_Jobs::preview( $uids, $operation, $options, $scope, self::filters( $data ) ) );
 	}
 
 	public static function create_job( WP_REST_Request $request ) {
@@ -161,7 +161,7 @@ final class LWPS_Admin_Controller {
 		$operation = isset( $data['operation'] ) ? sanitize_key( $data['operation'] ) : '';
 		$uids      = isset( $data['uids'] ) && is_array( $data['uids'] ) ? $data['uids'] : array();
 		$scope     = isset( $data['scope'] ) && 'all' === sanitize_key( $data['scope'] ) ? 'all' : 'selected';
-		$result    = LWPS_Jobs::create( $uids, $operation, self::options( $data ), $scope );
+		$result    = LWPS_Jobs::create( $uids, $operation, self::options( $data ), $scope, self::filters( $data ) );
 		return is_wp_error( $result ) ? $result : rest_ensure_response( $result );
 	}
 
@@ -254,6 +254,13 @@ final class LWPS_Admin_Controller {
 		return array(
 			'force_locked'              => ! empty( $data['force_locked'] ),
 			'delete_missing_variations' => ! empty( $data['delete_missing_variations'] ),
+		);
+	}
+
+	private static function filters( array $data ) {
+		return array(
+			'status' => isset( $data['filter_status'] ) ? sanitize_key( $data['filter_status'] ) : '',
+			'search' => isset( $data['filter_search'] ) ? sanitize_text_field( $data['filter_search'] ) : '',
 		);
 	}
 
