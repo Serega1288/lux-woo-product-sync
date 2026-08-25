@@ -116,13 +116,13 @@
 .lwps-pagination { display: flex; gap: 5px; justify-content: flex-end; margin: 12px 0; }
 .lwps-pagination button { background: #fff; border: 1px solid #ccd5e1; border-radius: 4px; cursor: pointer; height: 30px; min-width: 30px; }
 .lwps-pagination button.is-active { background: var(--lwps-blue); border-color: var(--lwps-blue); color: #fff; }
-.lwps-actionbar { align-items: center; background: #f4f7fb; border: 1px solid var(--lwps-line); display: flex; gap: 12px; margin-top: 16px; padding: 12px; position: sticky; bottom: 10px; }
+.lwps-actionbar { align-items: center; background: #f4f7fb; border: 1px solid var(--lwps-line); display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; padding: 12px; position: sticky; bottom: 10px; }
 .lwps-actionbar > strong { margin-right: auto; white-space: nowrap; }
 .lwps-actionbar select { min-height: 36px; }
-.lwps-operation-field { align-items: center; display: flex; gap: 7px; }
+.lwps-operation-field { align-items: center; display: flex; flex: 0 1 320px; gap: 7px; }
 .lwps-operation-field > span { color: var(--lwps-muted); font-size: 12px; font-weight: 600; text-transform: uppercase; }
 .lwps-check { align-items: center; display: flex; gap: 5px; white-space: nowrap; }
-.lwps-action-buttons { display: flex; gap: 8px; }
+.lwps-action-buttons { display: flex; gap: 8px; margin-left: auto; }
 
 .lwps-journal-toolbar { align-items: center; display: flex; gap: 10px; margin-bottom: 14px; }
 .lwps-journal-toolbar label { color: var(--lwps-muted); font-weight: 600; }
@@ -182,3 +182,4 @@
 	.lwps-journal-toolbar select { min-width: 0; width: 100%; }
 	.lwps-job-progress > div:last-child { align-items: flex-start; flex-direction: column; gap: 4px; }
 }
+
