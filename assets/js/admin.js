@@ -508,6 +508,8 @@
 			operation: $('#lwps-operation').value,
 			delete_missing_variations: $('#lwps-delete-missing').checked,
 			force_locked: $('#lwps-force-locked').checked,
+			filter_status: scope === 'all' ? $('#lwps-status-filter').value : '',
+			filter_search: scope === 'all' ? $('#lwps-search').value : '',
 		};
 	}
 
@@ -536,7 +538,7 @@
 				['Буде пропущено', Number(summary.skipped_locked || 0) + Number(summary.skipped_invalid || 0), true],
 			];
 			$('#lwps-preview-scope').textContent = scope === 'all'
-				? 'Усі товари, придатні для вибраної операції'
+				? 'Усі результати поточного фільтра й пошуку'
 				: `Вибрані товари: ${state.selected.size}`;
 			$('#lwps-preview-summary').innerHTML = rows.map(([name, count, danger]) => `<div class="lwps-preview-row${danger ? ' is-danger' : ''}"><span>${name}</span><strong>${Number(count || 0)}</strong></div>`).join('');
 			$('#lwps-confirm').disabled = Number(summary.total_items || 0) === 0;
