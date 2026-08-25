@@ -123,7 +123,7 @@
 		const complete = {
 			connection: state.connectionReady,
 			catalog: state.analysisReady,
-			changes: state.jobs.length > 0 || state.activeJob > 0,
+			changes: state.analysisReady && (state.jobs.length > 0 || state.activeJob > 0),
 			journal: false,
 		};
 		$$('.lwps-flow button').forEach((button) => {
@@ -167,11 +167,14 @@
 		if (!state.settings) return;
 		state.connectionReady = false;
 		state.analysisReady = false;
+		state.summary = {};
 		setStepResult('#lwps-connection-result', 'Є незбережені зміни підключення', 'muted');
 		setStepResult('#lwps-analysis-result', 'Після збереження потрібен новий аналіз', 'muted');
+		$('#lwps-analyze').innerHTML = '<span class="dashicons dashicons-update"></span>Запустити аналіз';
 		const badge = $('#lwps-connection-state');
 		badge.textContent = 'Потрібне збереження';
 		badge.className = 'lwps-state is-info';
+		renderMetrics(state.summary);
 		updateWorkflow();
 	}
 
@@ -219,8 +222,11 @@
 		const form = event.currentTarget;
 		state.connectionReady = false;
 		state.analysisReady = false;
+		state.summary = {};
 		setStepResult('#lwps-connection-result', 'Зберігаю налаштування…', 'info');
 		setStepResult('#lwps-analysis-result', 'Після зміни підключення потрібен новий аналіз', 'muted');
+		$('#lwps-analyze').innerHTML = '<span class="dashicons dashicons-update"></span>Запустити аналіз';
+		renderMetrics(state.summary);
 		updateWorkflow();
 		setBusy(button, true);
 		try {
@@ -626,3 +632,4 @@
 
 	loadSettings();
 }());
+
