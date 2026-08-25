@@ -25,9 +25,9 @@
 	};
 
 	const labels = {
-		new: 'Новий',
-		update: 'Потребує оновлення',
-		missing_variations: 'Відсутні варіації',
+		new: 'Новий товар',
+		update: 'Оновити товар',
+		missing_variations: 'Додати варіації',
 		local_changes: 'Локальні зміни',
 		locked: 'Заблокований',
 		pending: 'Очікує',
@@ -365,6 +365,55 @@
 
 	function statusLabel(status) { return labels[status] || status; }
 
+	function pluralize(count, one, few, many) {
+		const amount = Math.abs(Number(count));
+		const lastTwo = amount % 100;
+		const last = amount % 10;
+		if (lastTwo >= 11 && lastTwo <= 14) return many;
+		if (last === 1) return one;
+		if (last >= 2 && last <= 4) return few;
+		return many;
+	}
+
+	function variationNoun(count) {
+		return pluralize(count, 'варіацію', 'варіації', 'варіацій');
+	}
+
+	function productContext(item) {
+		if (item.change_status === 'new') return 'Новий товар · буде створено на цьому сайті';
+		if (item.change_status === 'missing_variations') return 'Товар уже є на сайті';
+		if (item.change_status === 'locked') return 'Існуючий товар · захищений від масового оновлення';
+		if (item.change_status === 'local_changes') return 'Існуючий товар · має локальні зміни';
+		return 'Існуючий товар';
+	}
+
+	function renderVariationSummary(item) {
+		const local = Number(item.local_variations);
+		const donor = Number(item.donor_variations);
+		const added = Number(item.variation_added);
+		const updated = Number(item.variation_updated);
+		const removed = Number(item.variation_removed);
+
+		if (item.change_status === 'new') {
+			const title = donor
+				? `Створити ${donor} ${variationNoun(donor)}`
+				: 'Товар без варіацій';
+			const detail = donor ? 'Разом із новим товаром' : 'Варіації не потрібні';
+			return `<div class="lwps-variation-summary"><strong>${title}</strong><small>${detail}</small></div>`;
+		}
+
+		if (item.change_status === 'missing_variations') {
+			return `<div class="lwps-variation-summary"><strong>Додати ${added} ${pluralize(added, 'відсутню варіацію', 'відсутні варіації', 'відсутніх варіацій')}</strong><small>Товар уже є · на сайті ${local}, у донора ${donor}</small></div>`;
+		}
+
+		const changes = [];
+		if (added) changes.push(`<span class="lwps-change-chip is-add">Додати ${added}</span>`);
+		if (updated) changes.push(`<span class="lwps-change-chip is-update">Оновити ${updated}</span>`);
+		if (removed) changes.push(`<span class="lwps-change-chip is-remove">Видалити ${removed}</span>`);
+		const title = changes.length ? changes.join('') : '<span class="lwps-change-chip is-none">Без змін</span>';
+		return `<div class="lwps-variation-summary"><div class="lwps-variation-counts">${title}</div><small>На сайті ${local} · у донора ${donor}</small></div>`;
+	}
+
 	async function loadChanges(page = state.page) {
 		const params = new URLSearchParams({
 			page: String(page),
@@ -396,8 +445,7 @@
 				const checked = state.selected.has(item.remote_uid) ? ' checked' : '';
 				const lockIcon = Number(item.is_locked) ? 'unlock' : 'lock';
 				const lockTitle = Number(item.is_locked) ? 'Зняти блокування' : 'Заблокувати локальні зміни';
-				const variationText = `${Number(item.local_variations)} → ${Number(item.donor_variations)}`;
-				return `<tr><td><input type="checkbox" data-select="${escapeHtml(item.remote_uid)}"${checked}></td><td><div class="lwps-product-name"><strong>${escapeHtml(item.product_name)}</strong><small>${escapeHtml(item.product_type)}</small></div></td><td><span class="lwps-badge ${escapeHtml(item.change_status)}">${escapeHtml(statusLabel(item.change_status))}</span></td><td>${variationText}<small> (+${Number(item.variation_added)} / ~${Number(item.variation_updated)} / −${Number(item.variation_removed)})</small></td><td><div class="lwps-table-actions">${item.edit_url ? `<a class="lwps-icon-button" href="${escapeHtml(item.edit_url)}" title="Редагувати"><span class="dashicons dashicons-edit"></span></a>` : ''}${Number(item.local_product_id) > 0 ? `<button class="lwps-icon-button" data-lock="${Number(item.local_product_id)}" data-locked="${Number(item.is_locked)}" title="${lockTitle}"><span class="dashicons dashicons-${lockIcon}"></span></button>` : ''}</div></td></tr>`;
+				return `<tr><td><input type="checkbox" data-select="${escapeHtml(item.remote_uid)}"${checked}></td><td><div class="lwps-product-name"><strong>${escapeHtml(item.product_name)}</strong><small>${escapeHtml(productContext(item))}</small></div></td><td><span class="lwps-badge ${escapeHtml(item.change_status)}">${escapeHtml(statusLabel(item.change_status))}</span></td><td>${renderVariationSummary(item)}</td><td><div class="lwps-table-actions">${item.edit_url ? `<a class="lwps-icon-button" href="${escapeHtml(item.edit_url)}" title="Редагувати"><span class="dashicons dashicons-edit"></span></a>` : ''}${Number(item.local_product_id) > 0 ? `<button class="lwps-icon-button" data-lock="${Number(item.local_product_id)}" data-locked="${Number(item.is_locked)}" title="${lockTitle}"><span class="dashicons dashicons-${lockIcon}"></span></button>` : ''}</div></td></tr>`;
 			}).join('');
 		}
 
