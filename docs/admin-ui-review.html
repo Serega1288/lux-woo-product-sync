@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="uk">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>LUX Woo Product Sync - visual review</title>
+	<link rel="stylesheet" href="../assets/css/admin.css">
+	<style>
+		body{background:#f0f0f1;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0;padding:0 24px 40px}.wrap{margin:10px 0 0}.button{background:#f6f7f7;border:1px solid #2271b1;border-radius:3px;color:#2271b1;cursor:pointer;font-size:13px;line-height:2.15;padding:0 12px}.button-primary{color:#fff}.dashicons{font-size:0}.dashicons:before{font-size:16px}.dashicons-admin-site-alt3:before{content:"S"}.dashicons-admin-links:before{content:"#"}.dashicons-yes-alt:before{content:"OK"}.dashicons-saved:before{content:"V"}.dashicons-update:before{content:"R"}.dashicons-products:before{content:"P"}.dashicons-screenoptions:before{content:"VAR"}.dashicons-edit:before{content:"E"}.dashicons-lock:before{content:"L"}.dashicons-search:before{content:"Q"}.dashicons-visibility:before{content:"VIEW"}.dashicons-controls-play:before{content:">"}.dashicons-media-text:before{content:"LOG"}.dashicons-filter:before{content:"F"}.dashicons-yes:before{content:"V"}.dashicons-warning:before{content:"!"}.dashicons-no-alt:before{content:"X"}.lwps-panel{min-height:520px}.lwps-review-hint{background:#fff;border:1px solid #c3c4c7;color:#50575e;font-size:12px;margin:12px 0 0;padding:8px 12px}.lwps-review-hint strong{color:#1d2327}
+	</style>
+</head>
+<body>
+<div class="wrap lwps" id="lwps-app">
+	<h1 class="screen-reader-text">Модуль перенесення та оновлення товарів WooCommerce</h1>
+	<header class="lwps-header"><div class="lwps-brandmark"><span class="dashicons dashicons-admin-site-alt3"></span></div><div><div class="lwps-header-title">Модуль перенесення та оновлення товарів WooCommerce</div><p>1 сайт-донор → 1 сайт-одержувач</p></div><div class="lwps-support">Варіативні товари</div></header>
+	<nav class="lwps-flow"><button data-tab="connection"><span class="dashicons dashicons-admin-links"></span>Підключення</button><i>→</i><button data-tab="catalog"><span class="dashicons dashicons-search"></span>Аналіз</button><i>→</i><button data-tab="changes"><span class="dashicons dashicons-filter"></span>Виявлення змін</button><i>→</i><button data-tab="changes"><span class="dashicons dashicons-edit"></span>Вибір дії</button><i>→</i><button data-tab="changes"><span class="dashicons dashicons-visibility"></span>Перевірка</button><i>→</i><button data-tab="journal"><span class="dashicons dashicons-controls-play"></span>Запуск</button><i>→</i><button data-tab="journal"><span class="dashicons dashicons-media-text"></span>Журнал</button></nav>
+
+	<section class="lwps-panel" data-panel="connection">
+		<div class="lwps-section-head"><div><span class="lwps-step">1</span><h2>Підключення до донора</h2></div><span class="lwps-state is-success">Підключено read-only: admin.giftcards.digital</span></div>
+		<form class="lwps-form"><label><span>URL сайту-донора</span><input value="https://admin.giftcards.digital"></label><label><span>REST API Key</span><input value="ck_••••••••••••••••••••••••••••••••••••"></label><label><span>REST API Secret</span><input type="password" value="masked-secret"></label><div class="lwps-form-actions"><button type="button" class="button"><span class="dashicons dashicons-yes-alt"></span>Перевірити</button><button type="button" class="button button-primary"><span class="dashicons dashicons-saved"></span>Зберегти</button></div></form>
+		<div class="lwps-review-hint"><strong>Стан:</strong> ключі збережені, GET-доступ підтверджено, донор не змінюється.</div>
+	</section>
+
+	<section class="lwps-panel" data-panel="catalog">
+		<div class="lwps-section-head"><div><span class="lwps-step">2</span><h2>Аналіз каталогу</h2></div><button class="button button-primary"><span class="dashicons dashicons-update"></span>Запустити аналіз</button></div>
+		<div class="lwps-metrics"><div class="lwps-metric is-green"><span class="dashicons dashicons-products"></span><strong>128</strong><small>Нові товари</small></div><div class="lwps-metric is-orange"><span class="dashicons dashicons-update"></span><strong>54</strong><small>Потребують оновлення</small></div><div class="lwps-metric is-violet"><span class="dashicons dashicons-screenoptions"></span><strong>342</strong><small>Нові варіації</small></div><div class="lwps-metric is-blue"><span class="dashicons dashicons-edit"></span><strong>6</strong><small>Локальні зміни</small></div><div class="lwps-metric is-red"><span class="dashicons dashicons-lock"></span><strong>17</strong><small>Заблоковані</small></div></div>
+		<div class="lwps-analysis-progress"><div class="lwps-progress-line"><span style="width:37%"></span></div><div><small>Опрацьовано 480 з 1297</small><strong>37%</strong></div></div>
+		<div class="lwps-review-hint"><strong>Пакет:</strong> 20 товарів за крок; прогрес рахується від REST-заголовка X-WP-Total.</div>
+	</section>
+
+	<section class="lwps-panel" data-panel="changes">
+		<div class="lwps-section-head"><div><span class="lwps-step">3</span><h2>Виявлені зміни</h2></div><span id="lwps-total-changes">37 змін</span></div>
+		<div class="lwps-toolbar"><label class="lwps-search"><span class="dashicons dashicons-search"></span><input placeholder="Пошук товару за назвою"></label><select><option>Усі статуси</option></select><button class="button">Оновити</button></div>
+		<div class="lwps-table-wrap"><table class="lwps-table"><thead><tr><th><input type="checkbox" checked></th><th>Товар</th><th>Статус</th><th>Варіації</th><th>Дії</th></tr></thead><tbody><tr><td><input type="checkbox" checked></td><td><div class="lwps-product-name"><strong>Star Wars: Galactic Racer (PS5)</strong><small>variable</small></div></td><td><span class="lwps-badge new">Новий</span></td><td>2 / +2</td><td><button class="lwps-icon-button">›</button></td></tr><tr><td><input type="checkbox" checked></td><td><div class="lwps-product-name"><strong>PlayStation Store Gift Card</strong><small>variable</small></div></td><td><span class="lwps-badge update">Потребує оновлення</span></td><td>12 / +1 / ~3</td><td><button class="lwps-icon-button">›</button></td></tr><tr><td><input type="checkbox"></td><td><div class="lwps-product-name"><strong>Steam Wallet Card</strong><small>variable</small></div></td><td><span class="lwps-badge local_changes">Локальні зміни</span></td><td>8 / ~2</td><td><button class="lwps-icon-button">›</button></td></tr><tr><td><input type="checkbox"></td><td><div class="lwps-product-name"><strong>Xbox Game Pass Ultimate</strong><small>variable</small></div></td><td><span class="lwps-badge locked">Заблокований</span></td><td>4</td><td><button class="lwps-icon-button">›</button></td></tr></tbody></table></div>
+		<div class="lwps-actionbar"><strong>Вибрано: 2</strong><select><option>Перенести нові товари</option><option>Оновити основні дані</option><option>Оновити варіації</option><option>Повний перезапис</option></select><label class="lwps-check"><input type="checkbox" disabled>Видалити відсутні варіації</label><button class="button button-primary"><span class="dashicons dashicons-visibility"></span>Перевірити зміни</button></div>
+	</section>
+
+	<section class="lwps-panel" data-panel="journal">
+		<div class="lwps-section-head"><div><span class="lwps-step">4</span><h2>Виконання та журнал</h2></div><button class="button">Оновити журнал</button></div>
+		<div class="lwps-job-layout"><div class="lwps-job-list"><button class="lwps-job-row is-active"><strong>#42 · Повний перезапис</strong><span class="lwps-badge running">Виконується</span><small>18 / 37 · сьогодні, 15:42</small><small></small></button><button class="lwps-job-row"><strong>#41 · Оновлення варіацій</strong><span class="lwps-badge completed_with_errors">Є помилки</span><small>25 / 25 · сьогодні, 14:11</small><small>2 помилки</small></button></div><div class="lwps-job-detail"><div class="lwps-job-head"><div><h3>Операція #42</h3><small>Повний перезапис</small></div></div><div class="lwps-job-progress"><div class="lwps-progress-line"><span style="width:49%"></span></div><div><strong>18 / 37</strong><span>49% · успішно 17, помилок 1</span></div></div><div class="lwps-table-wrap"><table class="lwps-log"><thead><tr><th>Час</th><th>UUID</th><th>Дія</th><th>Результат</th><th>Повідомлення</th></tr></thead><tbody><tr><td>15:45</td><td><code>f9e5…b712</code></td><td>Повний перезапис</td><td><span class="lwps-badge success">Успішно</span></td><td>—</td></tr><tr><td>15:44</td><td><code>2a41…9c07</code></td><td>Повний перезапис</td><td><span class="lwps-badge failed">Помилка</span></td><td>Зображення недоступне</td></tr></tbody></table></div></div></div>
+	</section>
+
+	<div class="lwps-modal" id="lwps-preview-modal" hidden><div class="lwps-modal-dialog"><button class="lwps-modal-close">×</button><div class="lwps-modal-head"><span class="dashicons dashicons-visibility"></span><div><h2>Підтвердіть виконання</h2><p>Перевірте результат майбутньої операції</p></div></div><div class="lwps-preview-summary"><div class="lwps-preview-row"><span>Буде створено товарів</span><strong>2</strong></div><div class="lwps-preview-row"><span>Буде оновлено товарів</span><strong>0</strong></div><div class="lwps-preview-row"><span>Буде додано варіацій</span><strong>14</strong></div><div class="lwps-preview-row"><span>Буде оновлено варіацій</span><strong>0</strong></div><div class="lwps-preview-row is-danger"><span>Буде видалено варіацій</span><strong>0</strong></div><div class="lwps-preview-row is-danger"><span>Буде пропущено</span><strong>0</strong></div></div><div class="lwps-modal-actions"><button class="button">Скасувати</button><button class="button button-primary">Підтвердити і запустити</button></div></div></div>
+</div>
+
+<script>
+	const params = new URLSearchParams(location.search);
+	const view = params.get('view') || 'connection';
+	document.querySelectorAll('[data-panel]').forEach((panel) => panel.classList.toggle('is-active', panel.dataset.panel === (view === 'preview' ? 'changes' : view)));
+	document.querySelectorAll('[data-tab]').forEach((button) => button.classList.toggle('is-active', button.dataset.tab === (view === 'preview' ? 'changes' : view)));
+	if (view === 'preview') document.getElementById('lwps-preview-modal').hidden = false;
+</script>
+</body>
+</html>

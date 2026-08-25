@@ -62,4 +62,3 @@ add_filter(
 ## Візуалізація
 
 Автономний макет процесу: `docs/workflow-preview.html`. Стенд перевірки реального admin UI: `docs/admin-ui-review.html`.
-

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="uk">
+<head><meta charset="utf-8"><title>LWPS admin JavaScript test</title><link rel="stylesheet" href="../assets/css/admin.css"></head>
+<body>
+<div id="lwps-app" class="lwps">
+	<div id="lwps-notice" hidden></div>
+	<nav class="lwps-flow"><button data-tab="connection">Connection</button><button data-tab="changes">Changes</button><button data-tab="journal">Journal</button></nav>
+	<section data-panel="connection" class="is-active">
+		<span id="lwps-connection-state"></span>
+		<form id="lwps-settings-form"><input name="donor_url"><input name="consumer_key"><input name="consumer_secret"><button type="button" id="lwps-test">Test</button><button type="submit">Save</button></form>
+	</section>
+	<section data-panel="catalog"><button id="lwps-analyze">Analyze</button><div id="lwps-metrics"></div><div id="lwps-analysis-empty"></div><div id="lwps-analysis-progress" hidden><div class="lwps-progress-line"><span></span></div><strong></strong><small></small></div></section>
+	<section data-panel="changes"><input id="lwps-search"><select id="lwps-status-filter"><option value="">All</option></select><button id="lwps-refresh">Refresh</button><span id="lwps-total-changes"></span><table><tbody id="lwps-change-rows"></tbody></table><div id="lwps-pagination"></div><input type="checkbox" id="lwps-select-all"><span id="lwps-selected-count"></span><select id="lwps-operation"><option value="import">Import</option><option value="overwrite">Overwrite</option></select><input type="checkbox" id="lwps-delete-missing"><input type="checkbox" id="lwps-force-locked"><button id="lwps-preview">Preview</button></section>
+	<section data-panel="journal"><button id="lwps-jobs-refresh">Jobs</button><div id="lwps-job-list"></div><div id="lwps-job-detail"></div></section>
+	<div id="lwps-preview-modal" hidden><button class="lwps-modal-close">Close</button><div id="lwps-preview-summary"></div><button id="lwps-confirm">Confirm</button></div>
+</div>
+<script>window.LWPS_CONFIG={restUrl:'https://lwps.test/wp-json/lwps/v1/admin',nonce:'rest-nonce',ajaxUrl:'https://lwps.test/wp-admin/admin-ajax.php',ajaxNonce:'ajax-nonce',perPage:30};</script>
+<script src="../assets/js/admin.js"></script>
+</body>
+</html>

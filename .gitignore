@@ -1,0 +1,8 @@
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+dist/
+*.log
+*.zip
+.phpunit.result.cache
