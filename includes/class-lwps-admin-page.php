@@ -147,7 +147,7 @@ final class LWPS_Admin_Page {
 						<option value=""><?php esc_html_e( 'Усі статуси', 'lux-woo-product-sync' ); ?></option>
 						<option value="new"><?php esc_html_e( 'Нові товари', 'lux-woo-product-sync' ); ?></option>
 						<option value="update"><?php esc_html_e( 'Товари для оновлення', 'lux-woo-product-sync' ); ?></option>
-						<option value="missing_variations"><?php esc_html_e( 'Додати варіації', 'lux-woo-product-sync' ); ?></option>
+						<option value="variation_added"><?php esc_html_e( 'Є варіації для додавання', 'lux-woo-product-sync' ); ?></option>
 						<option value="local_changes"><?php esc_html_e( 'Локальні зміни', 'lux-woo-product-sync' ); ?></option>
 						<option value="locked"><?php esc_html_e( 'Заблоковані', 'lux-woo-product-sync' ); ?></option>
 					</select>
@@ -172,7 +172,7 @@ final class LWPS_Admin_Page {
 						<option value="overwrite"><?php esc_html_e( 'Повністю перезаписати', 'lux-woo-product-sync' ); ?></option>
 					</select></label>
 					<label class="lwps-check"><input type="checkbox" id="lwps-delete-missing"><span><?php esc_html_e( 'Видалити зайві варіації', 'lux-woo-product-sync' ); ?></span></label>
-					<label class="lwps-check"><input type="checkbox" id="lwps-force-locked"><span><?php esc_html_e( 'Включити заблоковані', 'lux-woo-product-sync' ); ?></span></label>
+					<label class="lwps-check" title="<?php esc_attr_e( 'Дозволити вибраній операції змінювати заблоковані товари', 'lux-woo-product-sync' ); ?>"><input type="checkbox" id="lwps-force-locked"><span><?php esc_html_e( 'Примусово опрацювати заблоковані', 'lux-woo-product-sync' ); ?></span></label>
 					<div class="lwps-action-buttons">
 						<button class="button" id="lwps-preview"><span class="dashicons dashicons-visibility"></span><?php esc_html_e( 'Перевірити вибрані', 'lux-woo-product-sync' ); ?></button>
 						<button class="button button-primary" id="lwps-preview-all"><span class="dashicons dashicons-controls-forward"></span><?php esc_html_e( 'Опрацювати всі', 'lux-woo-product-sync' ); ?></button>
