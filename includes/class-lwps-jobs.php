@@ -3,8 +3,8 @@
 defined( 'ABSPATH' ) || exit;
 
 final class LWPS_Jobs {
-	public static function preview( array $uids, $operation, array $options = array(), $scope = 'selected' ) {
-		$rows = self::change_rows( $uids, $scope, $operation );
+	public static function preview( array $uids, $operation, array $options = array(), $scope = 'selected', array $filters = array() ) {
+		$rows = self::change_rows( $uids, $scope, $operation, $filters );
 		$summary = array(
 			'products_created'   => 0,
 			'products_updated'   => 0,
@@ -69,13 +69,13 @@ final class LWPS_Jobs {
 		);
 	}
 
-	public static function create( array $uids, $operation, array $options = array(), $scope = 'selected' ) {
+	public static function create( array $uids, $operation, array $options = array(), $scope = 'selected', array $filters = array() ) {
 		$operation = sanitize_key( $operation );
 		if ( ! in_array( $operation, LWPS_Product_Sync::OPERATIONS, true ) ) {
 			return new WP_Error( 'lwps_invalid_operation', __( 'Choose a valid synchronization operation.', 'lux-woo-product-sync' ) );
 		}
 
-		$rows = self::change_rows( $uids, $scope, $operation );
+		$rows = self::change_rows( $uids, $scope, $operation, $filters );
 		$rows = array_values(
 			array_filter(
 				$rows,
@@ -91,7 +91,7 @@ final class LWPS_Jobs {
 		global $wpdb;
 		$jobs  = $wpdb->prefix . 'lwps_jobs';
 		$items = $wpdb->prefix . 'lwps_job_items';
-		$preview = self::preview( $uids, $operation, $options, $scope );
+		$preview = self::preview( $uids, $operation, $options, $scope, $filters );
 
 		$wpdb->insert(
 			$jobs,
@@ -306,24 +306,43 @@ final class LWPS_Jobs {
 		}
 	}
 
-	private static function change_rows( array $uids, $scope = 'selected', $operation = '' ) {
+	private static function change_rows( array $uids, $scope = 'selected', $operation = '', array $filters = array() ) {
 		global $wpdb;
 		$table = $wpdb->prefix . 'lwps_changes';
 		$uids  = array_values( array_filter( array_map( array( 'LWPS_Identity', 'sanitize_uid' ), $uids ) ) );
 		if ( 'all' === $scope ) {
+			$where  = array( '1=1' );
+			$values = array();
 			if ( 'import' === $operation ) {
-				return $wpdb->get_results( "SELECT * FROM {$table} WHERE change_status = 'new' AND local_product_id = 0 ORDER BY id ASC" );
+				$where[] = "change_status = 'new'";
+				$where[] = 'local_product_id = 0';
+			} elseif ( 'add_variations' === $operation ) {
+				$where[] = 'local_product_id > 0';
+				$where[] = 'variation_added > 0';
+			} elseif ( in_array( $operation, array( 'update_main', 'update_variations' ), true ) ) {
+				$where[] = 'local_product_id > 0';
+			} elseif ( 'overwrite' !== $operation ) {
+				return array();
 			}
-			if ( 'add_variations' === $operation ) {
-				return $wpdb->get_results( "SELECT * FROM {$table} WHERE local_product_id > 0 AND variation_added > 0 ORDER BY id ASC" );
+
+			$status = isset( $filters['status'] ) ? sanitize_key( $filters['status'] ) : '';
+			$search = isset( $filters['search'] ) ? sanitize_text_field( $filters['search'] ) : '';
+			if ( in_array( $status, array( 'variation_added', 'missing_variations' ), true ) ) {
+				$where[] = 'local_product_id > 0';
+				$where[] = 'variation_added > 0';
+			} elseif ( 'locked' === $status ) {
+				$where[] = 'is_locked = 1';
+			} elseif ( in_array( $status, array( 'new', 'update', 'local_changes' ), true ) ) {
+				$where[]  = 'change_status = %s';
+				$values[] = $status;
 			}
-			if ( in_array( $operation, array( 'update_main', 'update_variations' ), true ) ) {
-				return $wpdb->get_results( "SELECT * FROM {$table} WHERE local_product_id > 0 ORDER BY id ASC" );
+			if ( '' !== $search ) {
+				$where[]  = 'product_name LIKE %s';
+				$values[] = '%' . $wpdb->esc_like( $search ) . '%';
 			}
-			if ( 'overwrite' === $operation ) {
-				return $wpdb->get_results( "SELECT * FROM {$table} ORDER BY id ASC" );
-			}
-			return array();
+
+			$sql = "SELECT * FROM {$table} WHERE " . implode( ' AND ', $where ) . ' ORDER BY id ASC';
+			return $wpdb->get_results( $values ? $wpdb->prepare( $sql, $values ) : $sql );
 		}
 		if ( ! $uids ) {
 			return array();
