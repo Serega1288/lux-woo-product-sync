@@ -107,7 +107,12 @@ final class LWPS_Admin_Controller {
 		$where    = array( '1=1' );
 		$values   = array();
 
-		if ( in_array( $status, array( 'new', 'update', 'missing_variations', 'local_changes', 'locked' ), true ) ) {
+		if ( in_array( $status, array( 'variation_added', 'missing_variations' ), true ) ) {
+			$where[] = 'local_product_id > 0';
+			$where[] = 'variation_added > 0';
+		} elseif ( 'locked' === $status ) {
+			$where[] = 'is_locked = 1';
+		} elseif ( in_array( $status, array( 'new', 'update', 'local_changes' ), true ) ) {
 			$where[]  = 'change_status = %s';
 			$values[] = $status;
 		}
@@ -182,6 +187,8 @@ final class LWPS_Admin_Controller {
 	}
 
 	public static function toggle_lock( WP_REST_Request $request ) {
+		global $wpdb;
+
 		$product_id = absint( $request['id'] );
 		if ( 'product' !== get_post_type( $product_id ) || ! current_user_can( 'edit_post', $product_id ) ) {
 			return new WP_Error( 'lwps_product_not_found', __( 'Product not found.', 'lux-woo-product-sync' ), array( 'status' => 404 ) );
@@ -193,7 +200,34 @@ final class LWPS_Admin_Controller {
 		} else {
 			delete_post_meta( $product_id, '_lwps_local_lock' );
 		}
-		return rest_ensure_response( array( 'product_id' => $product_id, 'locked' => $locked ) );
+
+		$table   = $wpdb->prefix . 'lwps_changes';
+		$change  = $wpdb->get_row( $wpdb->prepare( "SELECT id, change_status, details_json FROM {$table} WHERE local_product_id = %d", $product_id ), ARRAY_A );
+		$status  = $locked ? 'locked' : 'update';
+		$details = array();
+		if ( $change ) {
+			$details = json_decode( (string) $change['details_json'], true );
+			$details = is_array( $details ) ? $details : array();
+			if ( $locked && 'locked' !== $change['change_status'] ) {
+				$details['unlocked_status'] = $change['change_status'];
+			}
+			if ( ! $locked && isset( $details['unlocked_status'] ) && in_array( $details['unlocked_status'], array( 'update', 'missing_variations', 'local_changes' ), true ) ) {
+				$status = $details['unlocked_status'];
+			}
+			$wpdb->update(
+				$table,
+				array(
+					'is_locked'     => $locked ? 1 : 0,
+					'change_status' => $status,
+					'details_json'  => wp_json_encode( $details ),
+				),
+				array( 'id' => (int) $change['id'] ),
+				array( '%d', '%s', '%s' ),
+				array( '%d' )
+			);
+		}
+
+		return rest_ensure_response( array( 'product_id' => $product_id, 'locked' => $locked, 'status' => $status ) );
 	}
 
 	private static function body( WP_REST_Request $request ) {
@@ -257,3 +291,4 @@ final class LWPS_Admin_Controller {
 		return $result;
 	}
 }
+
