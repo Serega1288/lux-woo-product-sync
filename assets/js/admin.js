@@ -382,8 +382,8 @@
 	function productContext(item) {
 		if (item.change_status === 'new') return 'Новий товар · буде створено на цьому сайті';
 		if (item.change_status === 'missing_variations') return 'Товар уже є на сайті';
-		if (item.change_status === 'locked') return 'Існуючий товар · захищений від масового оновлення';
-		if (item.change_status === 'local_changes') return 'Існуючий товар · має локальні зміни';
+		if (item.change_status === 'locked') return 'Існуючий товар · звичайні операції його пропустять';
+		if (item.change_status === 'local_changes') return 'Існуючий товар · змінено після останньої синхронізації';
 		return 'Існуючий товар';
 	}
 
@@ -659,7 +659,15 @@
 		state.activeJob = Number(event.currentTarget.value || 0);
 		if (state.activeJob) loadJob(state.activeJob);
 	});
-	$('#lwps-status-filter').addEventListener('change', () => { state.page = 1; state.selected.clear(); loadChanges(1); });
+	$('#lwps-status-filter').addEventListener('change', (event) => {
+		const operation = $('#lwps-operation');
+		if (event.currentTarget.value === 'variation_added') operation.value = 'add_variations';
+		if (event.currentTarget.value === 'new') operation.value = 'import';
+		operation.dispatchEvent(new Event('change'));
+		state.page = 1;
+		state.selected.clear();
+		loadChanges(1);
+	});
 	$('#lwps-search').addEventListener('input', () => {
 		window.clearTimeout(state.searchTimer);
 		state.searchTimer = window.setTimeout(() => { state.page = 1; state.selected.clear(); loadChanges(1); }, 300);
