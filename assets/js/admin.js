@@ -16,6 +16,12 @@
 		totalChanges: 0,
 		activeJob: 0,
 		preview: null,
+		activeTab: 'connection',
+		connectionReady: false,
+		analysisReady: false,
+		analysisRunning: false,
+		analysisStartedAt: 0,
+		analysisClock: 0,
 	};
 
 	const labels = {
@@ -89,9 +95,57 @@
 		button.classList.toggle('is-busy', busy);
 	}
 
+	function analysisIsCurrent(data) {
+		const completed = data && data.state ? data.state.completed_at : '';
+		const updated = data && data.settings ? data.settings.updated_at : '';
+		if (!completed) return false;
+		if (!updated) return true;
+		const completedAt = Date.parse(String(completed).replace(' ', 'T') + 'Z');
+		const updatedAt = Date.parse(String(updated).replace(' ', 'T') + 'Z');
+		return Number.isNaN(completedAt) || Number.isNaN(updatedAt) ? true : completedAt >= updatedAt;
+	}
+
+	function setStepResult(selector, message, type = 'muted') {
+		const node = $(selector);
+		if (!node) return;
+		const icons = { success: 'yes-alt', error: 'warning', info: 'update', muted: 'clock' };
+		node.className = `lwps-step-result is-${type}`;
+		node.innerHTML = `<span class="dashicons dashicons-${icons[type] || icons.muted}"></span>${escapeHtml(message)}`;
+	}
+
+	function updateWorkflow() {
+		const available = {
+			connection: true,
+			catalog: state.connectionReady,
+			changes: state.connectionReady && state.analysisReady,
+			journal: state.connectionReady && state.analysisReady && (state.jobs.length > 0 || state.activeJob > 0),
+		};
+		const complete = {
+			connection: state.connectionReady,
+			catalog: state.analysisReady,
+			changes: state.jobs.length > 0 || state.activeJob > 0,
+			journal: false,
+		};
+		$$('.lwps-flow button').forEach((button) => {
+			const name = button.dataset.tab;
+			button.disabled = !available[name];
+			button.classList.toggle('is-active', name === state.activeTab);
+			button.classList.toggle('is-complete', Boolean(complete[name]));
+			if (name === state.activeTab) button.setAttribute('aria-current', 'step');
+			else button.removeAttribute('aria-current');
+		});
+		const nextAnalysis = $('#lwps-next-analysis');
+		const nextChanges = $('#lwps-next-changes');
+		if (nextAnalysis) nextAnalysis.disabled = !state.connectionReady;
+		if (nextChanges) nextChanges.disabled = !state.analysisReady;
+	}
+
 	function showTab(name) {
+		const button = $(`.lwps-flow button[data-tab="${name}"]`);
+		if (!button || button.disabled) return;
+		state.activeTab = name;
 		$$('[data-panel]').forEach((panel) => panel.classList.toggle('is-active', panel.dataset.panel === name));
-		$$('.lwps-flow button').forEach((button) => button.classList.toggle('is-active', button.dataset.tab === name));
+		updateWorkflow();
 		if (name === 'changes') loadChanges();
 		if (name === 'journal') loadJobs();
 	}
@@ -105,8 +159,20 @@
 			['locked', 'Заблоковані', 'lock', 'is-red'],
 		];
 		$('#lwps-metrics').innerHTML = metrics.map(([key, name, icon, cls]) => `<div class="lwps-metric ${cls}"><span class="dashicons dashicons-${icon}"></span><strong>${Number(summary[key] || 0)}</strong><small>${name}</small></div>`).join('');
-		const hasAnalysis = Object.values(summary).some((value) => Number(value) > 0) || (state.settings && state.settings.state && state.settings.state.completed_at);
+		const hasAnalysis = state.analysisReady || state.analysisRunning;
 		$('#lwps-analysis-empty').hidden = hasAnalysis;
+	}
+
+	function invalidateConnection() {
+		if (!state.settings) return;
+		state.connectionReady = false;
+		state.analysisReady = false;
+		setStepResult('#lwps-connection-result', 'Є незбережені зміни підключення', 'muted');
+		setStepResult('#lwps-analysis-result', 'Після збереження потрібен новий аналіз', 'muted');
+		const badge = $('#lwps-connection-state');
+		badge.textContent = 'Потрібне збереження';
+		badge.className = 'lwps-state is-info';
+		updateWorkflow();
 	}
 
 	async function loadSettings() {
@@ -120,17 +186,28 @@
 			state.settings = data;
 			state.summary = data.summary || {};
 			state.jobs = data.jobs || [];
+			state.analysisReady = analysisIsCurrent(data);
 			const form = $('#lwps-settings-form');
 			form.elements.donor_url.value = data.settings.donor_url || '';
 			form.elements.consumer_key.placeholder = data.settings.consumer_key || 'ck_••••••••••••••••';
 			form.elements.consumer_secret.placeholder = data.settings.consumer_secret || 'cs_••••••••••••••••';
+			if (state.analysisReady) {
+				const analyzedChanges = ['new', 'update', 'missing_variations', 'local_changes', 'locked']
+					.reduce((sum, key) => sum + Number(state.summary[key] || 0), 0);
+				setStepResult('#lwps-analysis-result', `Аналіз завершено: ${analyzedChanges} змін`, 'success');
+				$('#lwps-analyze').innerHTML = '<span class="dashicons dashicons-update"></span>Повторити аналіз';
+			}
 			if (data.settings.has_consumer_key && data.settings.has_consumer_secret) {
 				const badge = $('#lwps-connection-state');
-				badge.textContent = 'Налаштування збережено';
+				badge.textContent = 'Перевіряю збережене підключення…';
 				badge.className = 'lwps-state is-info';
 			}
 			renderMetrics(state.summary);
 			renderJobs();
+			updateWorkflow();
+			if (data.settings.has_consumer_key && data.settings.has_consumer_secret) {
+				await testConnection({ silent: true });
+			}
 		} catch (error) {
 			notice(error.message, 'error');
 		}
@@ -140,6 +217,11 @@
 		event.preventDefault();
 		const button = event.submitter || $('#lwps-settings-form button[type="submit"]');
 		const form = event.currentTarget;
+		state.connectionReady = false;
+		state.analysisReady = false;
+		setStepResult('#lwps-connection-result', 'Зберігаю налаштування…', 'info');
+		setStepResult('#lwps-analysis-result', 'Після зміни підключення потрібен новий аналіз', 'muted');
+		updateWorkflow();
 		setBusy(button, true);
 		try {
 			const data = await adminAction('lwps_save_settings', {
@@ -151,8 +233,9 @@
 			form.elements.consumer_secret.value = '';
 			form.elements.consumer_key.placeholder = data.settings.consumer_key;
 			form.elements.consumer_secret.placeholder = data.settings.consumer_secret;
-			notice('Налаштування збережено. Перевіряю підключення…', 'success');
-			await testConnection({ fromSave: true });
+			state.settings.settings = data.settings;
+			notice('Налаштування збережено. Перевіряю підключення…', 'info');
+			await testConnection({ fromSave: true, silent: false });
 		} catch (error) {
 			notice(error.message, 'error');
 		} finally {
@@ -161,11 +244,10 @@
 	}
 
 	async function testConnection(options = {}) {
-		const button = $('#lwps-test');
 		const badge = $('#lwps-connection-state');
-		setBusy(button, true);
 		badge.textContent = 'Перевірка…';
 		badge.className = 'lwps-state is-info';
+		setStepResult('#lwps-connection-result', 'Перевіряю REST API…', 'info');
 		try {
 			const form = $('#lwps-settings-form');
 			const data = await adminAction('lwps_test_connection', {
@@ -173,33 +255,74 @@
 				consumer_key: form.elements.consumer_key.value,
 				consumer_secret: form.elements.consumer_secret.value,
 			});
+			state.connectionReady = !data.requires_bootstrap;
 			if (data.protocol_ready) {
 				badge.textContent = `Підключено: ${data.donor_name}`;
-				badge.className = 'lwps-state is-success';
-				notice(data.requires_bootstrap ? 'WooCommerce REST працює. На донорі потрібно створити UUID.' : 'WooCommerce REST і модуль синхронізації підключені.', data.requires_bootstrap ? 'info' : 'success');
+				badge.className = data.requires_bootstrap ? 'lwps-state is-info' : 'lwps-state is-success';
+				setStepResult('#lwps-connection-result', data.requires_bootstrap ? 'Потрібне початкове зв’язування UUID' : 'Збережено й підключено', data.requires_bootstrap ? 'info' : 'success');
+				if (!options.silent) notice(data.requires_bootstrap ? 'WooCommerce REST працює. На донорі потрібно створити UUID.' : 'WooCommerce REST і модуль синхронізації підключені.', data.requires_bootstrap ? 'info' : 'success');
 			} else {
 				badge.textContent = `Підключено read-only: ${data.donor_name}`;
 				badge.className = 'lwps-state is-success';
-				notice('Стандартний WooCommerce REST працює. Донор не змінюється, стабільні UUID зберігатимуться на одержувачі.', 'success');
+				setStepResult('#lwps-connection-result', 'Збережено й підключено в режимі read-only', 'success');
+				if (!options.silent) notice('Стандартний WooCommerce REST працює. Донор не змінюється, стабільні UUID зберігатимуться на одержувачі.', 'success');
 			}
+			updateWorkflow();
+			return state.connectionReady;
 		} catch (error) {
+			state.connectionReady = false;
 			badge.textContent = 'Помилка підключення';
 			badge.className = 'lwps-state is-error';
-			notice(`${options.fromSave ? 'Налаштування збережено, але підключення не пройшло. ' : ''}${error.message}`, 'error');
-		} finally {
-			setBusy(button, false);
+			setStepResult('#lwps-connection-result', 'Підключення не підтверджено', 'error');
+			updateWorkflow();
+			if (!options.silent) notice(`${options.fromSave ? 'Налаштування збережено, але підключення не пройшло. ' : ''}${error.message}`, 'error');
+			return false;
 		}
 	}
 
+	function formatElapsed(milliseconds) {
+		const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+		const minutes = Math.floor(totalSeconds / 60);
+		const seconds = totalSeconds % 60;
+		return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+	}
+
+	function updateAnalysisClock() {
+		if (!state.analysisStartedAt) return;
+		$('#lwps-analysis-elapsed').textContent = formatElapsed(Date.now() - state.analysisStartedAt);
+	}
+
+	function stopAnalysisClock() {
+		window.clearInterval(state.analysisClock);
+		state.analysisClock = 0;
+		updateAnalysisClock();
+	}
+
 	async function analyze() {
+		if (!state.connectionReady) {
+			notice('Спочатку підтвердьте підключення до донора.', 'error');
+			return;
+		}
 		const button = $('#lwps-analyze');
 		const progress = $('#lwps-analysis-progress');
 		const bar = $('.lwps-progress-line span', progress);
-		const percentNode = $('strong', progress);
-		const caption = $('small', progress);
+		const percentNode = $('#lwps-analysis-percent');
+		const caption = $('#lwps-analysis-caption');
+		state.analysisReady = false;
+		state.analysisRunning = true;
+		state.analysisStartedAt = Date.now();
+		state.selected.clear();
+		$('#lwps-analysis-live-label').innerHTML = '<span class="dashicons dashicons-update"></span>Аналіз триває';
+		bar.style.width = '0%';
+		percentNode.textContent = '0%';
+		caption.textContent = 'Підготовка каталогу';
+		setStepResult('#lwps-analysis-result', 'Аналіз каталогу виконується…', 'info');
+		updateWorkflow();
 		setBusy(button, true);
 		progress.hidden = false;
 		$('#lwps-analysis-empty').hidden = true;
+		updateAnalysisClock();
+		state.analysisClock = window.setInterval(updateAnalysisClock, 1000);
 		try {
 			const start = await api('/analysis/start', { method: 'POST', body: {} });
 			let result;
@@ -212,13 +335,25 @@
 				renderMetrics(result.summary);
 			} while (!result.done);
 			state.summary = result.summary;
+			state.analysisReady = true;
+			$('#lwps-analysis-live-label').innerHTML = '<span class="dashicons dashicons-yes-alt"></span>Аналіз завершено';
+			setStepResult('#lwps-analysis-result', `Знайдено змін: ${Number(result.changes || 0)}`, 'success');
+			button.innerHTML = '<span class="dashicons dashicons-update"></span>Повторити аналіз';
+			updateWorkflow();
 			notice(`Аналіз завершено. Виявлено змін: ${result.changes}.`, 'success');
 			await loadChanges();
 		} catch (error) {
+			state.analysisReady = false;
+			$('#lwps-analysis-live-label').innerHTML = '<span class="dashicons dashicons-warning"></span>Аналіз перервано';
+			setStepResult('#lwps-analysis-result', 'Аналіз не завершено', 'error');
 			$('#lwps-analysis-empty').hidden = false;
+			updateWorkflow();
 			notice(error.message, 'error');
 		} finally {
+			state.analysisRunning = false;
+			stopAnalysisClock();
 			setBusy(button, false);
+			renderMetrics(state.summary);
 		}
 	}
 
@@ -271,7 +406,7 @@
 
 	function renderPagination() {
 		const node = $('#lwps-pagination');
-		if (!state.totalChanges) {
+		if (!state.totalChanges || state.totalPages <= 1) {
 			node.innerHTML = '';
 			return;
 		}
@@ -285,10 +420,22 @@
 	}
 
 	function renderSelection() {
+		const selectedOnPage = state.changes.filter((item) => state.selected.has(item.remote_uid)).length;
+		const pageSelected = state.changes.length > 0 && selectedOnPage === state.changes.length;
 		$('#lwps-selected-count').textContent = state.selected.size;
-		$('#lwps-select-all').checked = state.changes.length > 0 && state.changes.every((item) => state.selected.has(item.remote_uid));
+		$('#lwps-select-all').checked = pageSelected;
+		$('#lwps-select-all').indeterminate = selectedOnPage > 0 && !pageSelected;
+		$('#lwps-select-page').disabled = state.changes.length === 0;
+		$('#lwps-select-page-label').textContent = pageSelected ? 'Зняти вибір сторінки' : 'Вибрати все на сторінці';
 		$('#lwps-preview').disabled = state.selected.size === 0;
 		$('#lwps-preview-all').disabled = state.totalChanges === 0;
+	}
+
+	function togglePageSelection(forceSelected) {
+		const pageSelected = state.changes.length > 0 && state.changes.every((item) => state.selected.has(item.remote_uid));
+		const select = typeof forceSelected === 'boolean' ? forceSelected : !pageSelected;
+		state.changes.forEach((item) => select ? state.selected.add(item.remote_uid) : state.selected.delete(item.remote_uid));
+		renderChanges();
 	}
 
 	async function toggleLock(button) {
@@ -369,17 +516,21 @@
 	}
 
 	function renderJobs() {
-		const list = $('#lwps-job-list');
+		const select = $('#lwps-job-select');
 		if (!state.jobs.length) {
-			list.innerHTML = '<div class="lwps-empty"><span class="dashicons dashicons-media-text"></span><strong>Журнал порожній</strong></div>';
+			select.innerHTML = '<option value="">Журнал порожній</option>';
+			select.disabled = true;
+			state.activeJob = 0;
+			updateWorkflow();
 			return;
 		}
-		list.innerHTML = state.jobs.map((job) => `<button class="lwps-job-row${Number(job.id) === state.activeJob ? ' is-active' : ''}" data-job="${Number(job.id)}"><strong>#${Number(job.id)} · ${escapeHtml(labels[job.operation] || job.operation)}</strong><span class="lwps-badge ${escapeHtml(job.status)}">${escapeHtml(statusLabel(job.status))}</span><small>${Number(job.processed_items)} / ${Number(job.total_items)} · ${escapeHtml(job.created_at)}</small><small>${Number(job.failed_items) ? `${Number(job.failed_items)} помилок` : ''}</small></button>`).join('');
-		$$('[data-job]', list).forEach((button) => button.addEventListener('click', () => {
-			state.activeJob = Number(button.dataset.job);
-			renderJobs();
-			loadJob(state.activeJob);
-		}));
+		if (!state.activeJob || !state.jobs.some((job) => Number(job.id) === state.activeJob)) {
+			state.activeJob = Number(state.jobs[0].id);
+		}
+		select.disabled = false;
+		select.innerHTML = state.jobs.map((job) => `<option value="${Number(job.id)}">#${Number(job.id)} · ${escapeHtml(labels[job.operation] || job.operation)} · ${escapeHtml(statusLabel(job.status))} · ${Number(job.processed_items)}/${Number(job.total_items)}</option>`).join('');
+		select.value = String(state.activeJob);
+		updateWorkflow();
 	}
 
 	async function loadJob(id) {
@@ -400,16 +551,35 @@
 		if (retryButton) retryButton.addEventListener('click', () => retryJob(job.id, retryButton));
 	}
 
+	function updateJobSummary(job) {
+		const index = state.jobs.findIndex((item) => Number(item.id) === Number(job.id));
+		const summary = {
+			id: job.id,
+			operation: job.operation,
+			status: job.status,
+			total_items: job.total_items,
+			processed_items: job.processed_items,
+			success_items: job.success_items,
+			failed_items: job.failed_items,
+			created_at: job.created_at,
+			completed_at: job.completed_at,
+		};
+		if (index >= 0) state.jobs[index] = { ...state.jobs[index], ...summary };
+		else state.jobs.unshift(summary);
+		renderJobs();
+	}
+
 	async function runJob(id) {
 		try {
 			const job = await api(`/jobs/${id}/run`, { method: 'POST', body: { limit: 5 } });
 			renderJob(job);
-			await loadJobs();
+			updateJobSummary(job);
 			if (job.status === 'pending' || job.status === 'running') {
 				window.setTimeout(() => runJob(id), 180);
 			} else {
 				notice(job.failed_items > 0 ? `Операцію завершено з помилками: ${job.failed_items}.` : 'Операцію успішно завершено.', job.failed_items > 0 ? 'error' : 'success');
 				await loadChanges();
+				await loadJobs();
 			}
 		} catch (error) { notice(error.message, 'error'); }
 	}
@@ -425,19 +595,23 @@
 
 	$$('.lwps-flow button').forEach((button) => button.addEventListener('click', () => showTab(button.dataset.tab)));
 	$('#lwps-settings-form').addEventListener('submit', saveSettings);
-	$('#lwps-test').addEventListener('click', testConnection);
+	$$('#lwps-settings-form input').forEach((input) => input.addEventListener('input', invalidateConnection));
+	$('#lwps-next-analysis').addEventListener('click', () => showTab('catalog'));
+	$('#lwps-next-changes').addEventListener('click', () => showTab('changes'));
 	$('#lwps-analyze').addEventListener('click', analyze);
 	$('#lwps-refresh').addEventListener('click', () => loadChanges());
 	$('#lwps-jobs-refresh').addEventListener('click', loadJobs);
+	$('#lwps-job-select').addEventListener('change', (event) => {
+		state.activeJob = Number(event.currentTarget.value || 0);
+		if (state.activeJob) loadJob(state.activeJob);
+	});
 	$('#lwps-status-filter').addEventListener('change', () => { state.page = 1; state.selected.clear(); loadChanges(1); });
 	$('#lwps-search').addEventListener('input', () => {
 		window.clearTimeout(state.searchTimer);
 		state.searchTimer = window.setTimeout(() => { state.page = 1; state.selected.clear(); loadChanges(1); }, 300);
 	});
-	$('#lwps-select-all').addEventListener('change', (event) => {
-		state.changes.forEach((item) => event.currentTarget.checked ? state.selected.add(item.remote_uid) : state.selected.delete(item.remote_uid));
-		renderChanges();
-	});
+	$('#lwps-select-all').addEventListener('change', (event) => togglePageSelection(event.currentTarget.checked));
+	$('#lwps-select-page').addEventListener('click', () => togglePageSelection());
 	$('#lwps-operation').addEventListener('change', (event) => {
 		const overwrite = event.currentTarget.value === 'overwrite';
 		$('#lwps-delete-missing').disabled = !overwrite;
@@ -451,5 +625,4 @@
 	$('#lwps-preview-modal').addEventListener('click', (event) => { if (event.target === event.currentTarget) event.currentTarget.hidden = true; });
 
 	loadSettings();
-	loadChanges();
 }());

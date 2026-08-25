@@ -91,13 +91,10 @@ final class LWPS_Admin_Page {
 			</header>
 
 			<nav class="lwps-flow" aria-label="<?php esc_attr_e( 'Етапи синхронізації', 'lux-woo-product-sync' ); ?>">
-				<button class="is-active" data-tab="connection"><span class="dashicons dashicons-admin-links"></span><?php esc_html_e( 'Підключення', 'lux-woo-product-sync' ); ?></button><i>→</i>
-				<button data-tab="catalog"><span class="dashicons dashicons-search"></span><?php esc_html_e( 'Аналіз', 'lux-woo-product-sync' ); ?></button><i>→</i>
-				<button data-tab="changes"><span class="dashicons dashicons-list-view"></span><?php esc_html_e( 'Зміни', 'lux-woo-product-sync' ); ?></button><i>→</i>
-				<button data-tab="changes"><span class="dashicons dashicons-admin-tools"></span><?php esc_html_e( 'Дія', 'lux-woo-product-sync' ); ?></button><i>→</i>
-				<button data-tab="changes"><span class="dashicons dashicons-visibility"></span><?php esc_html_e( 'Перевірка', 'lux-woo-product-sync' ); ?></button><i>→</i>
-				<button data-tab="journal"><span class="dashicons dashicons-controls-play"></span><?php esc_html_e( 'Запуск', 'lux-woo-product-sync' ); ?></button><i>→</i>
-				<button data-tab="journal"><span class="dashicons dashicons-media-text"></span><?php esc_html_e( 'Журнал', 'lux-woo-product-sync' ); ?></button>
+				<button type="button" class="is-active" data-tab="connection" data-step="1" aria-current="step"><span class="dashicons dashicons-admin-links"></span><?php esc_html_e( 'Підключення', 'lux-woo-product-sync' ); ?></button><i>→</i>
+				<button type="button" data-tab="catalog" data-step="2" disabled><span class="dashicons dashicons-search"></span><?php esc_html_e( 'Аналіз', 'lux-woo-product-sync' ); ?></button><i>→</i>
+				<button type="button" data-tab="changes" data-step="3" disabled><span class="dashicons dashicons-list-view"></span><?php esc_html_e( 'Зміни й дія', 'lux-woo-product-sync' ); ?></button><i>→</i>
+				<button type="button" data-tab="journal" data-step="4" disabled><span class="dashicons dashicons-media-text"></span><?php esc_html_e( 'Журнал', 'lux-woo-product-sync' ); ?></button>
 			</nav>
 
 			<div id="lwps-notice" class="lwps-notice" hidden></div>
@@ -112,10 +109,13 @@ final class LWPS_Admin_Page {
 					<label><span><?php esc_html_e( 'REST API Key', 'lux-woo-product-sync' ); ?></span><input type="text" name="consumer_key" autocomplete="off" placeholder="ck_••••••••••••••••"></label>
 					<label><span><?php esc_html_e( 'REST API Secret', 'lux-woo-product-sync' ); ?></span><input type="password" name="consumer_secret" autocomplete="new-password" placeholder="cs_••••••••••••••••"></label>
 					<div class="lwps-form-actions">
-						<button type="button" class="button button-secondary" id="lwps-test"><span class="dashicons dashicons-yes-alt"></span><?php esc_html_e( 'Перевірити', 'lux-woo-product-sync' ); ?></button>
-						<button type="submit" class="button button-primary"><span class="dashicons dashicons-saved"></span><?php esc_html_e( 'Зберегти', 'lux-woo-product-sync' ); ?></button>
+						<button type="submit" class="button button-primary" id="lwps-save-test"><span class="dashicons dashicons-saved"></span><?php esc_html_e( 'Зберегти й перевірити', 'lux-woo-product-sync' ); ?></button>
 					</div>
 				</form>
+				<div class="lwps-step-footer">
+					<span class="lwps-step-result" id="lwps-connection-result"><span class="dashicons dashicons-clock"></span><?php esc_html_e( 'Очікує перевірки', 'lux-woo-product-sync' ); ?></span>
+					<button type="button" class="button button-primary" id="lwps-next-analysis" disabled><?php esc_html_e( 'Далі: Аналіз', 'lux-woo-product-sync' ); ?><span class="dashicons dashicons-arrow-right-alt2"></span></button>
+				</div>
 			</section>
 
 			<section class="lwps-panel" data-panel="catalog">
@@ -125,15 +125,20 @@ final class LWPS_Admin_Page {
 				</div>
 				<div class="lwps-metrics" id="lwps-metrics"></div>
 				<div class="lwps-analysis-progress" id="lwps-analysis-progress" hidden>
+					<div class="lwps-analysis-live"><span id="lwps-analysis-live-label"><span class="dashicons dashicons-update"></span><?php esc_html_e( 'Аналіз триває', 'lux-woo-product-sync' ); ?></span><time id="lwps-analysis-elapsed">00:00</time></div>
 					<div class="lwps-progress-line"><span></span></div>
-					<div><strong>0%</strong><small><?php esc_html_e( 'Очікування', 'lux-woo-product-sync' ); ?></small></div>
+					<div class="lwps-progress-caption"><small id="lwps-analysis-caption"><?php esc_html_e( 'Очікування', 'lux-woo-product-sync' ); ?></small><strong id="lwps-analysis-percent">0%</strong></div>
 				</div>
 				<div class="lwps-empty" id="lwps-analysis-empty"><span class="dashicons dashicons-search"></span><strong><?php esc_html_e( 'Каталог ще не проаналізовано', 'lux-woo-product-sync' ); ?></strong></div>
+				<div class="lwps-step-footer">
+					<span class="lwps-step-result" id="lwps-analysis-result"><span class="dashicons dashicons-clock"></span><?php esc_html_e( 'Аналіз ще не виконано', 'lux-woo-product-sync' ); ?></span>
+					<button type="button" class="button button-primary" id="lwps-next-changes" disabled><?php esc_html_e( 'Далі: Зміни', 'lux-woo-product-sync' ); ?><span class="dashicons dashicons-arrow-right-alt2"></span></button>
+				</div>
 			</section>
 
 			<section class="lwps-panel" data-panel="changes">
 				<div class="lwps-section-head">
-					<div><span class="lwps-step">3</span><h2><?php esc_html_e( 'Виявлені зміни', 'lux-woo-product-sync' ); ?></h2></div>
+					<div><span class="lwps-step">3</span><h2><?php esc_html_e( 'Зміни й дія', 'lux-woo-product-sync' ); ?></h2></div>
 					<span class="lwps-state is-info" id="lwps-total-changes">0</span>
 				</div>
 				<div class="lwps-toolbar">
@@ -146,11 +151,12 @@ final class LWPS_Admin_Page {
 						<option value="local_changes"><?php esc_html_e( 'Локальні зміни', 'lux-woo-product-sync' ); ?></option>
 						<option value="locked"><?php esc_html_e( 'Заблоковані', 'lux-woo-product-sync' ); ?></option>
 					</select>
-					<button class="button" id="lwps-refresh"><span class="dashicons dashicons-update"></span></button>
+					<button type="button" class="button" id="lwps-select-page"><span class="dashicons dashicons-yes"></span><span id="lwps-select-page-label"><?php esc_html_e( 'Вибрати все на сторінці', 'lux-woo-product-sync' ); ?></span></button>
+					<button type="button" class="button lwps-icon-command" id="lwps-refresh" title="<?php esc_attr_e( 'Оновити список', 'lux-woo-product-sync' ); ?>" aria-label="<?php esc_attr_e( 'Оновити список', 'lux-woo-product-sync' ); ?>"><span class="dashicons dashicons-update"></span></button>
 				</div>
 				<div class="lwps-table-wrap">
 					<table class="lwps-table">
-						<thead><tr><th><input type="checkbox" id="lwps-select-all"></th><th><?php esc_html_e( 'Товар', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Статус', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Варіації', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Дії', 'lux-woo-product-sync' ); ?></th></tr></thead>
+						<thead><tr><th><input type="checkbox" id="lwps-select-all" aria-label="<?php esc_attr_e( 'Вибрати товари на сторінці', 'lux-woo-product-sync' ); ?>"></th><th><?php esc_html_e( 'Товар', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Статус', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Варіації', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Дії', 'lux-woo-product-sync' ); ?></th></tr></thead>
 						<tbody id="lwps-change-rows"></tbody>
 					</table>
 				</div>
@@ -158,13 +164,13 @@ final class LWPS_Admin_Page {
 
 				<div class="lwps-actionbar">
 					<strong><span id="lwps-selected-count">0</span> <?php esc_html_e( 'вибрано', 'lux-woo-product-sync' ); ?></strong>
-					<select id="lwps-operation">
+					<label class="lwps-operation-field"><span><?php esc_html_e( 'Дія', 'lux-woo-product-sync' ); ?></span><select id="lwps-operation">
 						<option value="import"><?php esc_html_e( 'Перенести нові товари', 'lux-woo-product-sync' ); ?></option>
 						<option value="update_main"><?php esc_html_e( 'Оновити основні дані', 'lux-woo-product-sync' ); ?></option>
 						<option value="update_variations"><?php esc_html_e( 'Оновити варіації', 'lux-woo-product-sync' ); ?></option>
 						<option value="add_variations"><?php esc_html_e( 'Додати відсутні варіації', 'lux-woo-product-sync' ); ?></option>
 						<option value="overwrite"><?php esc_html_e( 'Повністю перезаписати', 'lux-woo-product-sync' ); ?></option>
-					</select>
+					</select></label>
 					<label class="lwps-check"><input type="checkbox" id="lwps-delete-missing"><span><?php esc_html_e( 'Видалити зайві варіації', 'lux-woo-product-sync' ); ?></span></label>
 					<label class="lwps-check"><input type="checkbox" id="lwps-force-locked"><span><?php esc_html_e( 'Включити заблоковані', 'lux-woo-product-sync' ); ?></span></label>
 					<div class="lwps-action-buttons">
@@ -177,12 +183,10 @@ final class LWPS_Admin_Page {
 			<section class="lwps-panel" data-panel="journal">
 				<div class="lwps-section-head">
 					<div><span class="lwps-step">4</span><h2><?php esc_html_e( 'Виконання та журнал', 'lux-woo-product-sync' ); ?></h2></div>
-					<button class="button" id="lwps-jobs-refresh"><span class="dashicons dashicons-update"></span><?php esc_html_e( 'Оновити', 'lux-woo-product-sync' ); ?></button>
+					<button type="button" class="button lwps-icon-command" id="lwps-jobs-refresh" title="<?php esc_attr_e( 'Оновити журнал', 'lux-woo-product-sync' ); ?>" aria-label="<?php esc_attr_e( 'Оновити журнал', 'lux-woo-product-sync' ); ?>"><span class="dashicons dashicons-update"></span></button>
 				</div>
-				<div class="lwps-job-layout">
-					<div class="lwps-job-list" id="lwps-job-list"></div>
-					<div class="lwps-job-detail" id="lwps-job-detail"><div class="lwps-empty"><span class="dashicons dashicons-media-text"></span><strong><?php esc_html_e( 'Виберіть операцію в журналі', 'lux-woo-product-sync' ); ?></strong></div></div>
-				</div>
+				<div class="lwps-journal-toolbar"><label for="lwps-job-select"><?php esc_html_e( 'Операція', 'lux-woo-product-sync' ); ?></label><select id="lwps-job-select"><option value=""><?php esc_html_e( 'Журнал порожній', 'lux-woo-product-sync' ); ?></option></select></div>
+				<div class="lwps-job-detail" id="lwps-job-detail"><div class="lwps-empty"><span class="dashicons dashicons-media-text"></span><strong><?php esc_html_e( 'Журнал порожній', 'lux-woo-product-sync' ); ?></strong></div></div>
 			</section>
 
 			<div class="lwps-modal" id="lwps-preview-modal" hidden>
