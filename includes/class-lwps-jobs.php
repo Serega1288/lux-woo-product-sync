@@ -314,7 +314,10 @@ final class LWPS_Jobs {
 			if ( 'import' === $operation ) {
 				return $wpdb->get_results( "SELECT * FROM {$table} WHERE change_status = 'new' AND local_product_id = 0 ORDER BY id ASC" );
 			}
-			if ( in_array( $operation, array( 'update_main', 'update_variations', 'add_variations' ), true ) ) {
+			if ( 'add_variations' === $operation ) {
+				return $wpdb->get_results( "SELECT * FROM {$table} WHERE local_product_id > 0 AND variation_added > 0 ORDER BY id ASC" );
+			}
+			if ( in_array( $operation, array( 'update_main', 'update_variations' ), true ) ) {
 				return $wpdb->get_results( "SELECT * FROM {$table} WHERE local_product_id > 0 ORDER BY id ASC" );
 			}
 			if ( 'overwrite' === $operation ) {
@@ -337,9 +340,13 @@ final class LWPS_Jobs {
 		if ( 'import' === $operation ) {
 			return 'new' === $row->change_status && ! $row->local_product_id;
 		}
-		if ( in_array( $operation, array( 'update_main', 'update_variations', 'add_variations' ), true ) ) {
+		if ( 'add_variations' === $operation ) {
+			return (bool) $row->local_product_id && (int) $row->variation_added > 0;
+		}
+		if ( in_array( $operation, array( 'update_main', 'update_variations' ), true ) ) {
 			return (bool) $row->local_product_id;
 		}
 		return 'overwrite' === $operation;
 	}
 }
+
