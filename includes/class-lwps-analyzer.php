@@ -121,15 +121,14 @@ final class LWPS_Analyzer {
 			return '';
 		}
 
-		if ( $is_locked ) {
-			$status = 'locked';
-		} elseif ( $local_changed ) {
-			$status = 'local_changes';
+		if ( $local_changed ) {
+			$unlocked_status = 'local_changes';
 		} elseif ( $added && ! $updated && ! $removed && ! $core_changed ) {
-			$status = 'missing_variations';
+			$unlocked_status = 'missing_variations';
 		} else {
-			$status = 'update';
+			$unlocked_status = 'update';
 		}
+		$status = $is_locked ? 'locked' : $unlocked_status;
 
 		self::store_change(
 			$remote,
@@ -142,6 +141,7 @@ final class LWPS_Analyzer {
 				'variation_updated' => count( $updated ),
 				'variation_removed' => count( $removed ),
 				'is_locked'         => $is_locked ? 1 : 0,
+				'unlocked_status'   => $unlocked_status,
 				'variation_uids'    => array(
 					'added'   => array_keys( $added ),
 					'updated' => array_keys( $updated ),
@@ -238,6 +238,7 @@ final class LWPS_Analyzer {
 		$details = array(
 			'remote_id'      => isset( $remote['remote_id'] ) ? absint( $remote['remote_id'] ) : 0,
 			'core_hash'      => isset( $remote['core_hash'] ) ? $remote['core_hash'] : '',
+			'unlocked_status' => isset( $local['unlocked_status'] ) ? sanitize_key( $local['unlocked_status'] ) : '',
 			'variation_uids' => isset( $local['variation_uids'] ) ? $local['variation_uids'] : array(
 				'added'   => wp_list_pluck( isset( $remote['variations'] ) ? $remote['variations'] : array(), 'uid' ),
 				'updated' => array(),
@@ -279,3 +280,4 @@ final class LWPS_Analyzer {
 	}
 
 }
+
