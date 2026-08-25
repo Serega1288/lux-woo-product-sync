@@ -175,7 +175,7 @@ final class LWPS_Admin_Page {
 					<label class="lwps-check" title="<?php esc_attr_e( 'Дозволити вибраній операції змінювати заблоковані товари', 'lux-woo-product-sync' ); ?>"><input type="checkbox" id="lwps-force-locked"><span><?php esc_html_e( 'Примусово опрацювати заблоковані', 'lux-woo-product-sync' ); ?></span></label>
 					<div class="lwps-action-buttons">
 						<button class="button" id="lwps-preview"><span class="dashicons dashicons-visibility"></span><?php esc_html_e( 'Перевірити вибрані', 'lux-woo-product-sync' ); ?></button>
-						<button class="button button-primary" id="lwps-preview-all"><span class="dashicons dashicons-controls-forward"></span><?php esc_html_e( 'Опрацювати всі', 'lux-woo-product-sync' ); ?></button>
+						<button class="button button-primary" id="lwps-preview-all"><span class="dashicons dashicons-controls-forward"></span><?php esc_html_e( 'Опрацювати всі результати', 'lux-woo-product-sync' ); ?></button>
 					</div>
 				</div>
 			</section>
