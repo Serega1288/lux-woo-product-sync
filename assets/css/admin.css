@@ -36,11 +36,12 @@
 .lwps-section-head > div { align-items: center; display: flex; gap: 10px; }
 .lwps-section-head h2 { color: var(--lwps-ink); font-size: 18px; margin: 0; }
 .lwps-step { align-items: center; background: var(--lwps-blue); border-radius: 5px; color: #fff; display: inline-flex; font-size: 14px; font-weight: 700; height: 28px; justify-content: center; width: 28px; }
-.lwps .button { align-items: center; display: inline-flex; gap: 6px; justify-content: center; min-height: 34px; }
+.lwps .button { align-items: center; display: inline-flex; gap: 6px; justify-content: center; line-height: 1; min-height: 34px; }
 .lwps .button-primary { background: var(--lwps-blue); border-color: var(--lwps-blue-dark); }
 .lwps .button-primary:hover { background: var(--lwps-blue-dark); }
 .lwps .button[disabled] { background: #edf0f4; border-color: #d5dbe4; color: #8b95a5; cursor: not-allowed; opacity: .8; }
-.lwps .dashicons { line-height: 1; }
+.lwps .dashicons { align-items: center; display: inline-flex; flex: 0 0 20px; height: 20px; justify-content: center; line-height: 1; margin: 0; position: static; top: auto; vertical-align: middle; width: 20px; }
+.lwps .dashicons::before { line-height: 1; }
 
 .lwps-form { display: grid; gap: 14px; max-width: 720px; }
 .lwps-form label { align-items: center; display: grid; gap: 14px; grid-template-columns: 170px minmax(260px, 1fr); }
@@ -96,13 +97,15 @@
 .lwps-toolbar select { min-height: 38px; }
 .lwps-icon-command { flex: 0 0 38px; min-width: 38px; padding: 0 !important; width: 38px; }
 .lwps-table-wrap { border: 1px solid var(--lwps-line); overflow-x: auto; }
-.lwps-table { border-collapse: collapse; min-width: 850px; width: 100%; }
+.lwps-table { border-collapse: collapse; min-width: 980px; width: 100%; }
+.lwps-table th:nth-child(2) { width: 33%; }
+.lwps-table th:nth-child(4) { width: 31%; }
 .lwps-table th { background: #f7f9fc; color: #536075; font-size: 11px; text-align: left; text-transform: uppercase; }
 .lwps-table th, .lwps-table td { border-bottom: 1px solid #e8edf3; padding: 11px 12px; vertical-align: middle; }
 .lwps-table tr:last-child td { border-bottom: 0; }
 .lwps-product-name { display: grid; gap: 2px; }
-.lwps-product-name strong { color: var(--lwps-ink); }
-.lwps-product-name small { color: #8b95a5; }
+.lwps-product-name strong { color: var(--lwps-ink); line-height: 1.35; }
+.lwps-product-name small { color: #738096; line-height: 1.35; }
 .lwps-badge { border-radius: 10px; display: inline-flex; font-size: 11px; font-weight: 600; padding: 4px 8px; }
 .lwps-badge.new { background: #e8f7ef; color: var(--lwps-green); }
 .lwps-badge.update, .lwps-badge.missing_variations { background: #fff3df; color: #bd671d; }
@@ -110,8 +113,18 @@
 .lwps-badge.locked, .lwps-badge.failed, .lwps-badge.completed_with_errors { background: #fdebed; color: var(--lwps-red); }
 .lwps-badge.success, .lwps-badge.completed { background: #e8f7ef; color: var(--lwps-green); }
 .lwps-badge.running { background: #eaf2ff; color: var(--lwps-blue); }
-.lwps-table-actions { display: flex; gap: 5px; }
+.lwps-variation-summary { display: grid; gap: 5px; }
+.lwps-variation-summary > strong { color: var(--lwps-ink); font-size: 13px; line-height: 1.35; }
+.lwps-variation-summary > small { color: #738096; line-height: 1.35; }
+.lwps-variation-counts { display: flex; flex-wrap: wrap; gap: 5px; }
+.lwps-change-chip { border: 1px solid transparent; border-radius: 4px; display: inline-flex; font-size: 11px; font-weight: 600; line-height: 1.4; padding: 3px 6px; }
+.lwps-change-chip.is-add { background: #e8f7ef; border-color: #ccebdc; color: #117a4b; }
+.lwps-change-chip.is-update { background: #fff3df; border-color: #f4dec0; color: #a95717; }
+.lwps-change-chip.is-remove { background: #fdebed; border-color: #f5cfd3; color: #b63240; }
+.lwps-change-chip.is-none { background: #eff2f6; border-color: #dfe4eb; color: #667085; }
+.lwps-table-actions { align-items: center; display: flex; gap: 5px; }
 .lwps-icon-button { align-items: center; background: #fff; border: 1px solid #cdd6e2; border-radius: 4px; color: #526077; cursor: pointer; display: inline-flex; height: 30px; justify-content: center; width: 30px; }
+.lwps-icon-button .dashicons { flex-basis: 20px; }
 .lwps-icon-button:hover { border-color: var(--lwps-blue); color: var(--lwps-blue); }
 .lwps-pagination { display: flex; gap: 5px; justify-content: flex-end; margin: 12px 0; }
 .lwps-pagination button { background: #fff; border: 1px solid #ccd5e1; border-radius: 4px; cursor: pointer; height: 30px; min-width: 30px; }
