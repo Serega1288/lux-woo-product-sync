@@ -145,9 +145,9 @@ final class LWPS_Admin_Page {
 					<div class="lwps-search"><span class="dashicons dashicons-search"></span><input type="search" id="lwps-search" placeholder="<?php esc_attr_e( 'Пошук товару за назвою', 'lux-woo-product-sync' ); ?>"></div>
 					<select id="lwps-status-filter">
 						<option value=""><?php esc_html_e( 'Усі статуси', 'lux-woo-product-sync' ); ?></option>
-						<option value="new"><?php esc_html_e( 'Нові', 'lux-woo-product-sync' ); ?></option>
-						<option value="update"><?php esc_html_e( 'Оновлення', 'lux-woo-product-sync' ); ?></option>
-						<option value="missing_variations"><?php esc_html_e( 'Відсутні варіації', 'lux-woo-product-sync' ); ?></option>
+						<option value="new"><?php esc_html_e( 'Нові товари', 'lux-woo-product-sync' ); ?></option>
+						<option value="update"><?php esc_html_e( 'Товари для оновлення', 'lux-woo-product-sync' ); ?></option>
+						<option value="missing_variations"><?php esc_html_e( 'Додати варіації', 'lux-woo-product-sync' ); ?></option>
 						<option value="local_changes"><?php esc_html_e( 'Локальні зміни', 'lux-woo-product-sync' ); ?></option>
 						<option value="locked"><?php esc_html_e( 'Заблоковані', 'lux-woo-product-sync' ); ?></option>
 					</select>
@@ -156,7 +156,7 @@ final class LWPS_Admin_Page {
 				</div>
 				<div class="lwps-table-wrap">
 					<table class="lwps-table">
-						<thead><tr><th><input type="checkbox" id="lwps-select-all" aria-label="<?php esc_attr_e( 'Вибрати товари на сторінці', 'lux-woo-product-sync' ); ?>"></th><th><?php esc_html_e( 'Товар', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Статус', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Варіації', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Дії', 'lux-woo-product-sync' ); ?></th></tr></thead>
+						<thead><tr><th><input type="checkbox" id="lwps-select-all" aria-label="<?php esc_attr_e( 'Вибрати товари на сторінці', 'lux-woo-product-sync' ); ?>"></th><th><?php esc_html_e( 'Батьківський товар', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Статус', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Зміни у варіаціях', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Дії', 'lux-woo-product-sync' ); ?></th></tr></thead>
 						<tbody id="lwps-change-rows"></tbody>
 					</table>
 				</div>
@@ -201,3 +201,4 @@ final class LWPS_Admin_Page {
 		<?php
 	}
 }
+
