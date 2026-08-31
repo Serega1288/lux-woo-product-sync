@@ -150,6 +150,9 @@ final class LWPS_Admin_Page {
 						<option value="locked"><?php esc_html_e( 'Заблоковані', 'lux-woo-product-sync' ); ?></option>
 					</select>
 					<button type="button" class="button" id="lwps-select-page"><span class="dashicons dashicons-yes"></span><span id="lwps-select-page-label"><?php esc_html_e( 'Вибрати все на сторінці', 'lux-woo-product-sync' ); ?></span></button>
+					<?php if ( current_user_can( 'manage_options' ) ) : ?>
+						<button type="button" class="button" id="lwps-download-db"><span class="dashicons dashicons-download"></span><?php esc_html_e( 'Скачати БД', 'lux-woo-product-sync' ); ?></button>
+					<?php endif; ?>
 					<button type="button" class="button lwps-icon-command" id="lwps-refresh" title="<?php esc_attr_e( 'Оновити список', 'lux-woo-product-sync' ); ?>" aria-label="<?php esc_attr_e( 'Оновити список', 'lux-woo-product-sync' ); ?>"><span class="dashicons dashicons-update"></span></button>
 				</div>
 				<div class="lwps-table-wrap">

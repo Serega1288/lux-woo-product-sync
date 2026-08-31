@@ -8,6 +8,7 @@ final class LWPS_Admin_Controller {
 		add_action( 'wp_ajax_lwps_save_settings', array( __CLASS__, 'ajax_save_settings' ) );
 		add_action( 'wp_ajax_lwps_test_connection', array( __CLASS__, 'ajax_test_connection' ) );
 		add_action( 'wp_ajax_lwps_get_settings', array( __CLASS__, 'ajax_get_settings' ) );
+		add_action( 'wp_ajax_lwps_download_database', array( __CLASS__, 'ajax_download_database' ) );
 	}
 
 	public static function routes() {
@@ -61,6 +62,30 @@ final class LWPS_Admin_Controller {
 			wp_send_json_error( array( 'code' => $result->get_error_code(), 'message' => $result->get_error_message() ), $status >= 400 && $status < 600 ? $status : 400 );
 		}
 		wp_send_json_success( $result );
+	}
+
+	public static function ajax_download_database() {
+		self::verify_database_download_request();
+
+		if ( function_exists( 'set_time_limit' ) ) {
+			@set_time_limit( 0 );
+		}
+
+		while ( ob_get_level() ) {
+			ob_end_clean();
+		}
+
+		$host     = wp_parse_url( home_url(), PHP_URL_HOST );
+		$host     = $host ? sanitize_file_name( $host ) : 'wordpress';
+		$filename = sprintf( '%s-database-%s.sql', $host, gmdate( 'Ymd-His' ) );
+
+		nocache_headers();
+		header( 'Content-Type: application/sql; charset=utf-8' );
+		header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+		header( 'X-Content-Type-Options: nosniff' );
+
+		self::stream_database_dump();
+		exit;
 	}
 
 	public static function settings() {
@@ -240,6 +265,91 @@ final class LWPS_Admin_Controller {
 		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_send_json_error( array( 'code' => 'lwps_forbidden', 'message' => __( 'You are not allowed to manage synchronization settings.', 'lux-woo-product-sync' ) ), 403 );
 		}
+	}
+
+	private static function verify_database_download_request() {
+		check_ajax_referer( 'lwps_admin', 'nonce' );
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_die( esc_html__( 'You are not allowed to download the database.', 'lux-woo-product-sync' ), '', array( 'response' => 403 ) );
+		}
+	}
+
+	private static function stream_database_dump() {
+		global $wpdb;
+
+		$tables = self::database_tables();
+		self::dump_line( '-- LUX Woo Product Sync database export' );
+		self::dump_line( '-- Site: ' . home_url() );
+		self::dump_line( '-- Created at: ' . gmdate( 'Y-m-d H:i:s' ) . ' UTC' );
+		self::dump_line( '' );
+		self::dump_line( 'SET FOREIGN_KEY_CHECKS=0;' );
+		self::dump_line( '' );
+
+		foreach ( $tables as $table ) {
+			$table_name = self::sql_identifier( $table );
+			$create     = $wpdb->get_row( 'SHOW CREATE TABLE ' . $table_name, ARRAY_N );
+			if ( ! $create || empty( $create[1] ) ) {
+				continue;
+			}
+
+			self::dump_line( '-- Table: ' . $table );
+			self::dump_line( 'DROP TABLE IF EXISTS ' . $table_name . ';' );
+			self::dump_line( $create[1] . ';' );
+			self::dump_line( '' );
+
+			$total = (int) $wpdb->get_var( 'SELECT COUNT(*) FROM ' . $table_name );
+			for ( $offset = 0; $offset < $total; $offset += 200 ) {
+				$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT * FROM ' . $table_name . ' LIMIT %d OFFSET %d', 200, $offset ), ARRAY_A );
+				foreach ( $rows as $row ) {
+					self::dump_line( self::insert_sql( $table, $row ) );
+				}
+				if ( function_exists( 'flush' ) ) {
+					flush();
+				}
+			}
+
+			self::dump_line( '' );
+		}
+
+		self::dump_line( 'SET FOREIGN_KEY_CHECKS=1;' );
+	}
+
+	private static function database_tables() {
+		global $wpdb;
+
+		$pattern = $wpdb->esc_like( $wpdb->prefix ) . '%';
+		$rows    = $wpdb->get_results( $wpdb->prepare( 'SHOW FULL TABLES LIKE %s', $pattern ), ARRAY_N );
+		$tables  = array();
+		foreach ( $rows as $row ) {
+			if ( isset( $row[0], $row[1] ) && 'BASE TABLE' === strtoupper( (string) $row[1] ) ) {
+				$tables[] = $row[0];
+			}
+		}
+		sort( $tables, SORT_STRING );
+		return $tables;
+	}
+
+	private static function insert_sql( $table, array $row ) {
+		$columns = array_map( array( __CLASS__, 'sql_identifier' ), array_keys( $row ) );
+		$values  = array_map( array( __CLASS__, 'sql_value' ), array_values( $row ) );
+		return 'INSERT INTO ' . self::sql_identifier( $table ) . ' (' . implode( ', ', $columns ) . ') VALUES (' . implode( ', ', $values ) . ');';
+	}
+
+	private static function sql_identifier( $identifier ) {
+		return '`' . str_replace( '`', '``', (string) $identifier ) . '`';
+	}
+
+	private static function sql_value( $value ) {
+		global $wpdb;
+
+		if ( null === $value ) {
+			return 'NULL';
+		}
+		return "'" . $wpdb->_real_escape( (string) $value ) . "'";
+	}
+
+	private static function dump_line( $line ) {
+		echo $line . "\n";
 	}
 
 	private static function ajax_connection_data() {

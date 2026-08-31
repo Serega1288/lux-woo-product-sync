@@ -499,6 +499,49 @@
 		finally { setBusy(button, false); }
 	}
 
+	function downloadDatabase(button) {
+		if (!config.ajaxUrl || !config.ajaxNonce) {
+			notice('Неможливо сформувати посилання для скачування.', 'error');
+			return;
+		}
+
+		setBusy(button, true);
+		notice('Готую файл бази даних для скачування…', 'info');
+
+		const frameName = 'lwps-db-download-frame';
+		let frame = $(`#${frameName}`);
+		if (!frame) {
+			frame = document.createElement('iframe');
+			frame.id = frameName;
+			frame.name = frameName;
+			frame.hidden = true;
+			document.body.appendChild(frame);
+		}
+
+		const form = document.createElement('form');
+		form.method = 'POST';
+		form.action = config.ajaxUrl;
+		form.target = frameName;
+		form.hidden = true;
+		[
+			['action', 'lwps_download_database'],
+			['nonce', config.ajaxNonce],
+		].forEach(([name, value]) => {
+			const input = document.createElement('input');
+			input.type = 'hidden';
+			input.name = name;
+			input.value = value;
+			form.appendChild(input);
+		});
+
+		document.body.appendChild(form);
+		form.submit();
+		window.setTimeout(() => {
+			form.remove();
+			setBusy(button, false);
+		}, 3000);
+	}
+
 	function operationPayload(scope = 'selected') {
 		return {
 			scope,
@@ -659,6 +702,8 @@
 	$('#lwps-next-changes').addEventListener('click', () => showTab('changes'));
 	$('#lwps-analyze').addEventListener('click', analyze);
 	$('#lwps-refresh').addEventListener('click', () => loadChanges());
+	const downloadDb = $('#lwps-download-db');
+	if (downloadDb) downloadDb.addEventListener('click', () => downloadDatabase(downloadDb));
 	$('#lwps-jobs-refresh').addEventListener('click', loadJobs);
 	$('#lwps-job-select').addEventListener('change', (event) => {
 		state.activeJob = Number(event.currentTarget.value || 0);

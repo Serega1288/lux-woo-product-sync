@@ -185,7 +185,7 @@
 	.lwps-metrics { grid-template-columns: 1fr 1fr; }
 	.lwps-toolbar { flex-wrap: wrap; }
 	.lwps-search { flex: 1 0 100%; max-width: none; width: 100%; }
-	.lwps-toolbar select, .lwps-toolbar #lwps-select-page { flex: 1 1 auto; }
+	.lwps-toolbar select, .lwps-toolbar #lwps-select-page, .lwps-toolbar #lwps-download-db { flex: 1 1 auto; }
 	.lwps-actionbar { position: static; }
 	.lwps-actionbar select, .lwps-actionbar .button { width: 100%; }
 	.lwps-operation-field { align-items: stretch; flex-direction: column; width: 100%; }
