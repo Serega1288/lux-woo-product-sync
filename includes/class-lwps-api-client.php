@@ -211,6 +211,7 @@ final class LWPS_Api_Client {
 
 		foreach ( $map as $id => $row ) {
 			$map[ $id ]['parent_slug'] = $row['parent'] && isset( $map[ $row['parent'] ] ) ? $map[ $row['parent'] ]['slug'] : '';
+			$map[ $id ]['parent_name'] = $row['parent'] && isset( $map[ $row['parent'] ] ) ? $map[ $row['parent'] ]['name'] : '';
 		}
 		set_transient( $cache_key, $map, 10 * MINUTE_IN_SECONDS );
 		return $map;

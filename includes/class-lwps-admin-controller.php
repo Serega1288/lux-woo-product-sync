@@ -276,7 +276,7 @@ final class LWPS_Admin_Controller {
 	private static function change_summary() {
 		global $wpdb;
 		$table  = $wpdb->prefix . 'lwps_changes';
-		$rows   = $wpdb->get_results( "SELECT change_status, COUNT(*) amount, SUM(variation_added) variation_added, SUM(variation_updated) variation_updated, SUM(variation_removed) variation_removed FROM {$table} GROUP BY change_status", ARRAY_A );
+		$rows   = $wpdb->get_results( "SELECT change_status, COUNT(*) amount, SUM(CASE WHEN local_product_id > 0 THEN variation_added ELSE 0 END) variation_added, SUM(CASE WHEN local_product_id > 0 THEN variation_updated ELSE 0 END) variation_updated, SUM(CASE WHEN local_product_id > 0 THEN variation_removed ELSE 0 END) variation_removed FROM {$table} GROUP BY change_status", ARRAY_A );
 		$result = array(
 			'new'                => 0,
 			'update'             => 0,
@@ -298,4 +298,3 @@ final class LWPS_Admin_Controller {
 		return $result;
 	}
 }
-

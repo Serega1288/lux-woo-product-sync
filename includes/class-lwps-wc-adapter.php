@@ -99,6 +99,7 @@ final class LWPS_WC_Adapter {
 			'reviews_allowed'    => ! empty( $data['reviews_allowed'] ),
 			'categories'         => $this->terms( isset( $data['categories'] ) ? $data['categories'] : array(), true ),
 			'tags'               => $this->terms( isset( $data['tags'] ) ? $data['tags'] : array(), false ),
+			'custom_taxonomies'  => array(),
 			'images'             => $this->images( isset( $data['images'] ) ? $data['images'] : array() ),
 			'attributes'         => $this->attributes( isset( $data['attributes'] ) ? $data['attributes'] : array() ),
 			'default_attributes' => $this->default_attributes( isset( $data['default_attributes'] ) ? $data['default_attributes'] : array() ),
@@ -186,6 +187,7 @@ final class LWPS_WC_Adapter {
 				'name'        => isset( $row['name'] ) ? (string) $row['name'] : '',
 				'slug'        => isset( $row['slug'] ) ? (string) $row['slug'] : '',
 				'parent_slug' => $hierarchical && $id && isset( $this->categories[ $id ]['parent_slug'] ) ? $this->categories[ $id ]['parent_slug'] : '',
+				'parent_name' => $hierarchical && $id && isset( $this->categories[ $id ]['parent_name'] ) ? $this->categories[ $id ]['parent_name'] : '',
 			);
 		}
 		usort( $data, static function ( $a, $b ) { return strcmp( $a['slug'], $b['slug'] ); } );

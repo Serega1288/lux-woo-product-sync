@@ -39,6 +39,7 @@ final class LWPS_Product_Sync {
 			if ( in_array( $operation, array( 'import', 'update_main', 'overwrite' ), true ) ) {
 				self::apply_main( $product, $remote['product'] );
 				$product_id = $product->save();
+				self::apply_custom_taxonomies( $product_id, isset( $remote['product']['custom_taxonomies'] ) ? $remote['product']['custom_taxonomies'] : array() );
 				LWPS_Identity::assign( $product_id, $remote_uid );
 			}
 
@@ -154,6 +155,29 @@ final class LWPS_Product_Sync {
 		$product->set_gallery_image_ids( $image_ids );
 
 		self::apply_meta( $product, isset( $data['meta'] ) ? $data['meta'] : array() );
+	}
+
+	private static function apply_custom_taxonomies( $product_id, array $rows ) {
+		$product_id = absint( $product_id );
+		if ( ! $product_id ) {
+			return;
+		}
+
+		$excluded = array( 'product_cat', 'product_tag', 'product_shipping_class', 'product_type', 'product_visibility' );
+		foreach ( $rows as $row ) {
+			$taxonomy = isset( $row['taxonomy'] ) ? sanitize_key( $row['taxonomy'] ) : '';
+			if ( ! $taxonomy || in_array( $taxonomy, $excluded, true ) || 0 === strpos( $taxonomy, 'pa_' ) ) {
+				continue;
+			}
+
+			self::ensure_product_taxonomy(
+				$taxonomy,
+				isset( $row['label'] ) ? sanitize_text_field( $row['label'] ) : $taxonomy,
+				! empty( $row['hierarchical'] )
+			);
+			$term_ids = self::ensure_terms( $taxonomy, isset( $row['terms'] ) && is_array( $row['terms'] ) ? $row['terms'] : array() );
+			wp_set_object_terms( $product_id, $term_ids, $taxonomy, false );
+		}
 	}
 
 	private static function apply_variations( WC_Product $product, array $variations, $operation, array $options ) {
@@ -290,6 +314,24 @@ final class LWPS_Product_Sync {
 		return (int) $attribute_id;
 	}
 
+	private static function ensure_product_taxonomy( $taxonomy, $label, $hierarchical ) {
+		if ( taxonomy_exists( $taxonomy ) ) {
+			return;
+		}
+
+		register_taxonomy(
+			$taxonomy,
+			array( 'product' ),
+			array(
+				'label'        => $label,
+				'hierarchical' => (bool) $hierarchical,
+				'show_ui'      => true,
+				'query_var'    => true,
+				'rewrite'      => false,
+			)
+		);
+	}
+
 	private static function ensure_terms( $taxonomy, array $rows ) {
 		$ids     = array();
 		$by_slug = array();
@@ -323,7 +365,8 @@ final class LWPS_Product_Sync {
 				$parent_slug = sanitize_title( $row['parent_slug'] );
 				$parent      = term_exists( $parent_slug, $taxonomy );
 				if ( ! $parent ) {
-					$parent = wp_insert_term( $parent_slug, $taxonomy, array( 'slug' => $parent_slug ) );
+					$parent_name = ! empty( $row['parent_name'] ) ? sanitize_text_field( $row['parent_name'] ) : $parent_slug;
+					$parent = wp_insert_term( $parent_name, $taxonomy, array( 'slug' => $parent_slug ) );
 				}
 				$child = term_exists( $slug, $taxonomy );
 				if ( ! is_wp_error( $parent ) && ! is_wp_error( $child ) && $parent && $child ) {

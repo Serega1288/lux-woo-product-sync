@@ -126,6 +126,7 @@ final class LWPS_Snapshot {
 			'reviews_allowed'    => $product->get_reviews_allowed(),
 			'categories'         => self::terms( $product->get_id(), 'product_cat' ),
 			'tags'               => self::terms( $product->get_id(), 'product_tag' ),
+			'custom_taxonomies'  => self::custom_taxonomies( $product->get_id() ),
 			'images'             => self::images( $product ),
 			'attributes'         => self::attributes( $product ),
 			'default_attributes' => $product->get_default_attributes(),
@@ -205,17 +206,48 @@ final class LWPS_Snapshot {
 		$data = array();
 		foreach ( $terms as $term ) {
 			$parent_slug = '';
+			$parent_name = '';
 			if ( $term->parent ) {
 				$parent = get_term( $term->parent, $taxonomy );
 				$parent_slug = $parent && ! is_wp_error( $parent ) ? $parent->slug : '';
+				$parent_name = $parent && ! is_wp_error( $parent ) ? $parent->name : '';
 			}
 			$data[] = array(
 				'name'        => $term->name,
 				'slug'        => $term->slug,
 				'parent_slug' => $parent_slug,
+				'parent_name' => $parent_name,
 			);
 		}
 		usort( $data, static function ( $a, $b ) { return strcmp( $a['slug'], $b['slug'] ); } );
+		return $data;
+	}
+
+	private static function custom_taxonomies( $product_id ) {
+		$excluded = array( 'product_cat', 'product_tag', 'product_shipping_class', 'product_type', 'product_visibility' );
+		$taxonomies = get_object_taxonomies( 'product', 'objects' );
+		$taxonomies = apply_filters( 'lwps_synced_product_taxonomies', $taxonomies, $product_id );
+		$data = array();
+
+		foreach ( $taxonomies as $taxonomy => $object ) {
+			if ( in_array( $taxonomy, $excluded, true ) || 0 === strpos( $taxonomy, 'pa_' ) ) {
+				continue;
+			}
+
+			$terms = self::terms( $product_id, $taxonomy );
+			if ( ! $terms ) {
+				continue;
+			}
+
+			$data[] = array(
+				'taxonomy'     => sanitize_key( $taxonomy ),
+				'label'        => isset( $object->label ) ? (string) $object->label : $taxonomy,
+				'hierarchical' => ! empty( $object->hierarchical ),
+				'terms'        => $terms,
+			);
+		}
+
+		usort( $data, static function ( $a, $b ) { return strcmp( $a['taxonomy'], $b['taxonomy'] ); } );
 		return $data;
 	}
 

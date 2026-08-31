@@ -93,7 +93,7 @@ final class LWPS_Admin_Page {
 			<nav class="lwps-flow" aria-label="<?php esc_attr_e( 'Етапи синхронізації', 'lux-woo-product-sync' ); ?>">
 				<button type="button" class="is-active" data-tab="connection" data-step="1" aria-current="step"><span class="dashicons dashicons-admin-links"></span><?php esc_html_e( 'Підключення', 'lux-woo-product-sync' ); ?></button><i>→</i>
 				<button type="button" data-tab="catalog" data-step="2" disabled><span class="dashicons dashicons-search"></span><?php esc_html_e( 'Аналіз', 'lux-woo-product-sync' ); ?></button><i>→</i>
-				<button type="button" data-tab="changes" data-step="3" disabled><span class="dashicons dashicons-list-view"></span><?php esc_html_e( 'Зміни й дія', 'lux-woo-product-sync' ); ?></button><i>→</i>
+				<button type="button" data-tab="changes" data-step="3" disabled><span class="dashicons dashicons-list-view"></span><?php esc_html_e( 'Позиції та дія', 'lux-woo-product-sync' ); ?></button><i>→</i>
 				<button type="button" data-tab="journal" data-step="4" disabled><span class="dashicons dashicons-media-text"></span><?php esc_html_e( 'Журнал', 'lux-woo-product-sync' ); ?></button>
 			</nav>
 
@@ -132,23 +132,21 @@ final class LWPS_Admin_Page {
 				<div class="lwps-empty" id="lwps-analysis-empty"><span class="dashicons dashicons-search"></span><strong><?php esc_html_e( 'Каталог ще не проаналізовано', 'lux-woo-product-sync' ); ?></strong></div>
 				<div class="lwps-step-footer">
 					<span class="lwps-step-result" id="lwps-analysis-result"><span class="dashicons dashicons-clock"></span><?php esc_html_e( 'Аналіз ще не виконано', 'lux-woo-product-sync' ); ?></span>
-					<button type="button" class="button button-primary" id="lwps-next-changes" disabled><?php esc_html_e( 'Далі: Зміни', 'lux-woo-product-sync' ); ?><span class="dashicons dashicons-arrow-right-alt2"></span></button>
+					<button type="button" class="button button-primary" id="lwps-next-changes" disabled><?php esc_html_e( 'Далі: Позиції', 'lux-woo-product-sync' ); ?><span class="dashicons dashicons-arrow-right-alt2"></span></button>
 				</div>
 			</section>
 
 			<section class="lwps-panel" data-panel="changes">
 				<div class="lwps-section-head">
-					<div><span class="lwps-step">3</span><h2><?php esc_html_e( 'Зміни й дія', 'lux-woo-product-sync' ); ?></h2></div>
+					<div><span class="lwps-step">3</span><h2><?php esc_html_e( 'Позиції та дія', 'lux-woo-product-sync' ); ?></h2></div>
 					<span class="lwps-state is-info" id="lwps-total-changes">0</span>
 				</div>
 				<div class="lwps-toolbar">
 					<div class="lwps-search"><span class="dashicons dashicons-search"></span><input type="search" id="lwps-search" placeholder="<?php esc_attr_e( 'Пошук товару за назвою', 'lux-woo-product-sync' ); ?>"></div>
 					<select id="lwps-status-filter">
-						<option value=""><?php esc_html_e( 'Усі статуси', 'lux-woo-product-sync' ); ?></option>
+						<option value=""><?php esc_html_e( 'Усі позиції', 'lux-woo-product-sync' ); ?></option>
 						<option value="new"><?php esc_html_e( 'Нові товари', 'lux-woo-product-sync' ); ?></option>
-						<option value="update"><?php esc_html_e( 'Товари для оновлення', 'lux-woo-product-sync' ); ?></option>
 						<option value="variation_added"><?php esc_html_e( 'Є варіації для додавання', 'lux-woo-product-sync' ); ?></option>
-						<option value="local_changes"><?php esc_html_e( 'Локальні зміни', 'lux-woo-product-sync' ); ?></option>
 						<option value="locked"><?php esc_html_e( 'Заблоковані', 'lux-woo-product-sync' ); ?></option>
 					</select>
 					<button type="button" class="button" id="lwps-select-page"><span class="dashicons dashicons-yes"></span><span id="lwps-select-page-label"><?php esc_html_e( 'Вибрати все на сторінці', 'lux-woo-product-sync' ); ?></span></button>
@@ -156,7 +154,7 @@ final class LWPS_Admin_Page {
 				</div>
 				<div class="lwps-table-wrap">
 					<table class="lwps-table">
-						<thead><tr><th><input type="checkbox" id="lwps-select-all" aria-label="<?php esc_attr_e( 'Вибрати товари на сторінці', 'lux-woo-product-sync' ); ?>"></th><th><?php esc_html_e( 'Батьківський товар', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Статус', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Зміни у варіаціях', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Дії', 'lux-woo-product-sync' ); ?></th></tr></thead>
+						<thead><tr><th><input type="checkbox" id="lwps-select-all" aria-label="<?php esc_attr_e( 'Вибрати товари на сторінці', 'lux-woo-product-sync' ); ?>"></th><th><?php esc_html_e( 'Батьківський товар', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Статус', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Варіації', 'lux-woo-product-sync' ); ?></th><th><?php esc_html_e( 'Дії', 'lux-woo-product-sync' ); ?></th></tr></thead>
 						<tbody id="lwps-change-rows"></tbody>
 					</table>
 				</div>
@@ -201,4 +199,3 @@ final class LWPS_Admin_Page {
 		<?php
 	}
 }
-

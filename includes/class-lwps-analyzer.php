@@ -96,39 +96,23 @@ final class LWPS_Analyzer {
 			return 'new';
 		}
 
-		$local          = LWPS_Snapshot::manifest( $product );
-		$local_hash     = $local ? $local['full_hash'] : '';
-		$baseline_local = (string) get_post_meta( $product_id, '_lwps_last_local_hash', true );
-		$is_locked      = 'yes' === get_post_meta( $product_id, '_lwps_local_lock', true );
-		$initial_diff   = 'yes' === get_post_meta( $product_id, '_lwps_initial_mismatch', true );
+		self::link_existing_variations( $product, isset( $remote['variations'] ) ? $remote['variations'] : array() );
+
+		$local      = LWPS_Snapshot::manifest( $product );
+		$local_hash = $local ? $local['full_hash'] : '';
+		$is_locked  = 'yes' === get_post_meta( $product_id, '_lwps_local_lock', true );
 
 		$remote_variations = wp_list_pluck( isset( $remote['variations'] ) ? $remote['variations'] : array(), 'hash', 'uid' );
 		$local_variations  = $local ? wp_list_pluck( $local['variations'], 'hash', 'uid' ) : array();
 		$added             = array_diff_key( $remote_variations, $local_variations );
 		$removed           = array_diff_key( $local_variations, $remote_variations );
-		$updated           = array();
-		foreach ( array_intersect_key( $remote_variations, $local_variations ) as $uid => $hash ) {
-			if ( ! hash_equals( (string) $hash, (string) $local_variations[ $uid ] ) ) {
-				$updated[ $uid ] = $hash;
-			}
-		}
 
-		$donor_changed = ! $local_hash || ! hash_equals( (string) $remote['full_hash'], (string) $local_hash );
-		$local_changed = $initial_diff || ( '' !== $baseline_local && ! hash_equals( $baseline_local, $local_hash ) );
-		$core_changed  = ! $local || ! hash_equals( (string) $remote['core_hash'], (string) $local['core_hash'] );
-
-		if ( ! $donor_changed ) {
+		if ( ! $added ) {
 			return '';
 		}
 
-		if ( $local_changed ) {
-			$unlocked_status = 'local_changes';
-		} elseif ( $added && ! $updated && ! $removed && ! $core_changed ) {
-			$unlocked_status = 'missing_variations';
-		} else {
-			$unlocked_status = 'update';
-		}
-		$status = $is_locked ? 'locked' : $unlocked_status;
+		$unlocked_status = 'missing_variations';
+		$status          = $is_locked ? 'locked' : $unlocked_status;
 
 		self::store_change(
 			$remote,
@@ -138,13 +122,13 @@ final class LWPS_Analyzer {
 				'local_hash'        => $local_hash,
 				'local_variations'  => count( $local_variations ),
 				'variation_added'   => count( $added ),
-				'variation_updated' => count( $updated ),
+				'variation_updated' => 0,
 				'variation_removed' => count( $removed ),
 				'is_locked'         => $is_locked ? 1 : 0,
 				'unlocked_status'   => $unlocked_status,
 				'variation_uids'    => array(
 					'added'   => array_keys( $added ),
-					'updated' => array_keys( $updated ),
+					'updated' => array(),
 					'removed' => array_keys( $removed ),
 				),
 			)
@@ -280,4 +264,3 @@ final class LWPS_Analyzer {
 	}
 
 }
-

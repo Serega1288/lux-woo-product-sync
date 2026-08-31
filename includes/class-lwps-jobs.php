@@ -115,7 +115,9 @@ final class LWPS_Jobs {
 			$details      = ! empty( $row->details_json ) ? json_decode( $row->details_json, true ) : array();
 			if ( is_array( $details ) && ! empty( $details['remote_id'] ) ) {
 				$item_options['remote_id'] = absint( $details['remote_id'] );
+				$item_options['_lwps_remote_id'] = absint( $details['remote_id'] );
 			}
+			$item_options['_lwps_product_name'] = sanitize_text_field( $row->product_name );
 			$wpdb->insert(
 				$items,
 				array(
@@ -245,11 +247,19 @@ final class LWPS_Jobs {
 		}
 
 		$logs = $wpdb->get_results(
-			$wpdb->prepare( "SELECT id, remote_uid, local_product_id, operation, status, attempts, error_message, result_json, completed_at FROM {$items} WHERE job_id = %d ORDER BY id DESC LIMIT 100", $job_id ),
+			$wpdb->prepare(
+				"SELECT i.id, i.remote_uid, i.local_product_id, i.operation, i.status, i.attempts, i.error_message, i.result_json, i.options_json, i.completed_at, c.product_name, c.details_json AS change_details_json
+				FROM {$items} i
+				LEFT JOIN {$wpdb->prefix}lwps_changes c ON c.remote_uid = i.remote_uid
+				WHERE i.job_id = %d
+				ORDER BY i.id DESC
+				LIMIT 100",
+				$job_id
+			),
 			ARRAY_A
 		);
 		$job['summary'] = json_decode( (string) $job['summary_json'], true );
-		$job['logs']    = $logs;
+		$job['logs']    = self::decorate_logs( $logs );
 		unset( $job['summary_json'] );
 		return $job;
 	}
@@ -304,6 +314,40 @@ final class LWPS_Jobs {
 		if ( ! wp_next_scheduled( 'lwps_run_job', array( (int) $job_id ) ) ) {
 			wp_schedule_single_event( time() + 5, 'lwps_run_job', array( (int) $job_id ) );
 		}
+	}
+
+	private static function decorate_logs( array $logs ) {
+		foreach ( $logs as &$log ) {
+			$options = ! empty( $log['options_json'] ) ? json_decode( (string) $log['options_json'], true ) : array();
+			$options = is_array( $options ) ? $options : array();
+			$details = ! empty( $log['change_details_json'] ) ? json_decode( (string) $log['change_details_json'], true ) : array();
+			$details = is_array( $details ) ? $details : array();
+
+			$name = '';
+			if ( ! empty( $log['product_name'] ) ) {
+				$name = $log['product_name'];
+			} elseif ( ! empty( $options['_lwps_product_name'] ) ) {
+				$name = $options['_lwps_product_name'];
+			} elseif ( ! empty( $log['local_product_id'] ) ) {
+				$name = get_the_title( (int) $log['local_product_id'] );
+			}
+
+			$remote_id = 0;
+			if ( ! empty( $details['remote_id'] ) ) {
+				$remote_id = absint( $details['remote_id'] );
+			} elseif ( ! empty( $options['_lwps_remote_id'] ) ) {
+				$remote_id = absint( $options['_lwps_remote_id'] );
+			} elseif ( ! empty( $options['remote_id'] ) ) {
+				$remote_id = absint( $options['remote_id'] );
+			}
+
+			$log['product_label'] = $name ? wp_strip_all_tags( $name ) : __( 'Товар', 'lux-woo-product-sync' );
+			$log['product_meta']  = $remote_id ? sprintf( __( 'ID донора #%d', 'lux-woo-product-sync' ), $remote_id ) : '';
+
+			unset( $log['options_json'], $log['change_details_json'], $log['product_name'] );
+		}
+		unset( $log );
+		return $logs;
 	}
 
 	private static function change_rows( array $uids, $scope = 'selected', $operation = '', array $filters = array() ) {
@@ -368,4 +412,3 @@ final class LWPS_Jobs {
 		return 'overwrite' === $operation;
 	}
 }
-

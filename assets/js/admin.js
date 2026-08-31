@@ -26,9 +26,9 @@
 
 	const labels = {
 		new: 'Новий товар',
-		update: 'Оновити товар',
+		update: 'Позиція',
 		missing_variations: 'Додати варіації',
-		local_changes: 'Локальні зміни',
+		local_changes: 'Позиція',
 		locked: 'Заблокований',
 		pending: 'Очікує',
 		running: 'Виконується',
@@ -153,9 +153,7 @@
 	function renderMetrics(summary = {}) {
 		const metrics = [
 			['new', 'Нові товари', 'products', 'is-green'],
-			['update', 'Потребують оновлення', 'update', 'is-orange'],
 			['variation_added', 'Нові варіації', 'screenoptions', 'is-violet'],
-			['local_changes', 'Локальні зміни', 'edit', 'is-blue'],
 			['locked', 'Заблоковані', 'lock', 'is-red'],
 		];
 		$('#lwps-metrics').innerHTML = metrics.map(([key, name, icon, cls]) => `<div class="lwps-metric ${cls}"><span class="dashicons dashicons-${icon}"></span><strong>${Number(summary[key] || 0)}</strong><small>${name}</small></div>`).join('');
@@ -195,9 +193,9 @@
 			form.elements.consumer_key.placeholder = data.settings.consumer_key || 'ck_••••••••••••••••';
 			form.elements.consumer_secret.placeholder = data.settings.consumer_secret || 'cs_••••••••••••••••';
 			if (state.analysisReady) {
-				const analyzedChanges = ['new', 'update', 'missing_variations', 'local_changes', 'locked']
+				const analyzedChanges = ['new', 'missing_variations', 'locked']
 					.reduce((sum, key) => sum + Number(state.summary[key] || 0), 0);
-				setStepResult('#lwps-analysis-result', `Аналіз завершено: ${analyzedChanges} змін`, 'success');
+				setStepResult('#lwps-analysis-result', `Аналіз завершено: ${analyzedChanges} позицій`, 'success');
 				$('#lwps-analyze').innerHTML = '<span class="dashicons dashicons-update"></span>Повторити аналіз';
 			}
 			if (data.settings.has_consumer_key && data.settings.has_consumer_secret) {
@@ -343,10 +341,10 @@
 			state.summary = result.summary;
 			state.analysisReady = true;
 			$('#lwps-analysis-live-label').innerHTML = '<span class="dashicons dashicons-yes-alt"></span>Аналіз завершено';
-			setStepResult('#lwps-analysis-result', `Знайдено змін: ${Number(result.changes || 0)}`, 'success');
+			setStepResult('#lwps-analysis-result', `Знайдено позицій: ${Number(result.changes || 0)}`, 'success');
 			button.innerHTML = '<span class="dashicons dashicons-update"></span>Повторити аналіз';
 			updateWorkflow();
-			notice(`Аналіз завершено. Виявлено змін: ${result.changes}.`, 'success');
+			notice(`Аналіз завершено. Виявлено позицій: ${result.changes}.`, 'success');
 			await loadChanges();
 		} catch (error) {
 			state.analysisReady = false;
@@ -383,7 +381,7 @@
 		if (item.change_status === 'new') return 'Новий товар · буде створено на цьому сайті';
 		if (item.change_status === 'missing_variations') return 'Товар уже є на сайті';
 		if (item.change_status === 'locked') return 'Існуючий товар · звичайні операції його пропустять';
-		if (item.change_status === 'local_changes') return 'Існуючий товар · змінено після останньої синхронізації';
+		if (item.change_status === 'local_changes') return 'Існуючий товар';
 		return 'Існуючий товар';
 	}
 
@@ -437,14 +435,14 @@
 
 	function renderChanges() {
 		const body = $('#lwps-change-rows');
-		$('#lwps-total-changes').textContent = `${state.totalChanges} змін`;
+		$('#lwps-total-changes').textContent = `${state.totalChanges} позицій`;
 		if (!state.changes.length) {
-			body.innerHTML = '<tr><td colspan="5"><div class="lwps-empty"><span class="dashicons dashicons-yes-alt"></span><strong>Змін за цим фільтром немає</strong></div></td></tr>';
+			body.innerHTML = '<tr><td colspan="5"><div class="lwps-empty"><span class="dashicons dashicons-yes-alt"></span><strong>Позицій за цим фільтром немає</strong></div></td></tr>';
 		} else {
 			body.innerHTML = state.changes.map((item) => {
 				const checked = state.selected.has(item.remote_uid) ? ' checked' : '';
 				const lockIcon = Number(item.is_locked) ? 'unlock' : 'lock';
-				const lockTitle = Number(item.is_locked) ? 'Зняти блокування' : 'Заблокувати локальні зміни';
+				const lockTitle = Number(item.is_locked) ? 'Зняти блокування' : 'Заблокувати товар від звичайних операцій';
 				return `<tr><td><input type="checkbox" data-select="${escapeHtml(item.remote_uid)}"${checked}></td><td><div class="lwps-product-name"><strong>${escapeHtml(item.product_name)}</strong><small>${escapeHtml(productContext(item))}</small></div></td><td><span class="lwps-badge ${escapeHtml(item.change_status)}">${escapeHtml(statusLabel(item.change_status))}</span></td><td>${renderVariationSummary(item)}</td><td><div class="lwps-table-actions">${item.edit_url ? `<a class="lwps-icon-button" href="${escapeHtml(item.edit_url)}" title="Редагувати"><span class="dashicons dashicons-edit"></span></a>` : ''}${Number(item.local_product_id) > 0 ? `<button class="lwps-icon-button" data-lock="${Number(item.local_product_id)}" data-locked="${Number(item.is_locked)}" title="${lockTitle}"><span class="dashicons dashicons-${lockIcon}"></span></button>` : ''}</div></td></tr>`;
 			}).join('');
 		}
@@ -519,7 +517,7 @@
 			return;
 		}
 		if (scope === 'all' && !state.totalChanges) {
-			notice('Немає змін для опрацювання.', 'error');
+			notice('Немає позицій для опрацювання.', 'error');
 			return;
 		}
 		const button = scope === 'all' ? $('#lwps-preview-all') : $('#lwps-preview');
@@ -601,8 +599,13 @@
 		const total = Math.max(1, Number(job.total_items));
 		const percent = Math.min(100, Math.round((Number(job.processed_items) / total) * 100));
 		const retry = Number(job.failed_items) ? '<button class="button" data-retry><span class="dashicons dashicons-update"></span>Повторити невдалі</button>' : '';
-		const logs = (job.logs || []).map((row) => `<tr><td>${escapeHtml(row.completed_at || '—')}</td><td><code>${escapeHtml(row.remote_uid)}</code></td><td>${escapeHtml(labels[row.operation] || row.operation)}</td><td><span class="lwps-badge ${escapeHtml(row.status)}">${escapeHtml(statusLabel(row.status))}</span></td><td>${escapeHtml(row.error_message || '—')}</td></tr>`).join('');
-		detail.innerHTML = `<div class="lwps-job-head"><div><h3>Операція #${Number(job.id)}</h3><small>${escapeHtml(labels[job.operation] || job.operation)}</small></div>${retry}</div><div class="lwps-job-progress"><div class="lwps-progress-line"><span style="width:${percent}%"></span></div><div><strong>${Number(job.processed_items)} / ${Number(job.total_items)}</strong><span>${percent}% · успішно ${Number(job.success_items)}, помилок ${Number(job.failed_items)}</span></div></div><div class="lwps-table-wrap"><table class="lwps-log"><thead><tr><th>Час</th><th>UUID</th><th>Дія</th><th>Результат</th><th>Повідомлення</th></tr></thead><tbody>${logs || '<tr><td colspan="5">Очікування запуску</td></tr>'}</tbody></table></div>`;
+		const logs = (job.logs || []).map((row) => {
+			const product = row.product_meta
+				? `<div class="lwps-product-name"><strong>${escapeHtml(row.product_label || 'Товар')}</strong><small>${escapeHtml(row.product_meta)}</small></div>`
+				: `<div class="lwps-product-name"><strong>${escapeHtml(row.product_label || 'Товар')}</strong></div>`;
+			return `<tr><td>${escapeHtml(row.completed_at || '—')}</td><td>${product}</td><td>${escapeHtml(labels[row.operation] || row.operation)}</td><td><span class="lwps-badge ${escapeHtml(row.status)}">${escapeHtml(statusLabel(row.status))}</span></td><td>${escapeHtml(row.error_message || '—')}</td></tr>`;
+		}).join('');
+		detail.innerHTML = `<div class="lwps-job-head"><div><h3>Операція #${Number(job.id)}</h3><small>${escapeHtml(labels[job.operation] || job.operation)}</small></div>${retry}</div><div class="lwps-job-progress"><div class="lwps-progress-line"><span style="width:${percent}%"></span></div><div><strong>${Number(job.processed_items)} / ${Number(job.total_items)}</strong><span>${percent}% · успішно ${Number(job.success_items)}, помилок ${Number(job.failed_items)}</span></div></div><div class="lwps-table-wrap"><table class="lwps-log"><thead><tr><th>Час</th><th>Товар</th><th>Дія</th><th>Результат</th><th>Повідомлення</th></tr></thead><tbody>${logs || '<tr><td colspan="5">Очікування запуску</td></tr>'}</tbody></table></div>`;
 		const retryButton = $('[data-retry]', detail);
 		if (retryButton) retryButton.addEventListener('click', () => retryJob(job.id, retryButton));
 	}
@@ -690,4 +693,3 @@
 
 	loadSettings();
 }());
-
