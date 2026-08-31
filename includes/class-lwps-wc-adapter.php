@@ -57,10 +57,43 @@ final class LWPS_WC_Adapter {
 				'core_hash'       => $core_hash,
 				'full_hash'       => $full_hash,
 				'variation_count' => count( $manifest_variations ),
+				'variations_loaded' => true,
 				'variations'      => $manifest_variations,
 			),
 			'product'    => $core,
 			'variations' => array_map( array( $this, 'without_remote_id' ), $normalized ),
+		);
+	}
+
+	public function manifest( array $product ) {
+		if ( empty( $product['id'] ) ) {
+			return new WP_Error( 'lwps_invalid_product', __( 'The donor returned a product without an ID.', 'lux-woo-product-sync' ) );
+		}
+
+		$this->attribute_keys = $this->attribute_key_map( isset( $product['attributes'] ) && is_array( $product['attributes'] ) ? $product['attributes'] : array() );
+		$core                = $this->product( $product );
+		$manifest_variations = $this->manifest_variations_from_ids( isset( $product['variations'] ) && is_array( $product['variations'] ) ? $product['variations'] : array() );
+		$core_hash           = LWPS_Snapshot::hash( $core );
+
+		return array(
+			'uid'              => $core['uid'],
+			'remote_id'        => (int) $product['id'],
+			'name'             => $core['name'],
+			'slug'             => $core['slug'],
+			'type'             => $core['type'],
+			'status'           => $core['status'],
+			'modified_at'      => isset( $product['date_modified'] ) ? sanitize_text_field( $product['date_modified'] ) : '',
+			'core_hash'        => $core_hash,
+			'full_hash'        => LWPS_Snapshot::hash(
+				array(
+					'core'       => $core_hash,
+					'variations' => wp_list_pluck( $manifest_variations, 'hash', 'uid' ),
+					'loaded'     => false,
+				)
+			),
+			'variation_count'  => count( $manifest_variations ),
+			'variations_loaded' => false,
+			'variations'       => $manifest_variations,
 		);
 	}
 
@@ -179,6 +212,24 @@ final class LWPS_WC_Adapter {
 		}
 		ksort( $data );
 		return $data;
+	}
+
+	private function manifest_variations_from_ids( array $ids ) {
+		$variations = array();
+		foreach ( $ids as $id ) {
+			$uid = LWPS_Identity::for_remote( $this->source_url, 'variation', $id );
+			if ( ! $uid ) {
+				continue;
+			}
+			$variations[] = array(
+				'uid'        => $uid,
+				'remote_id'  => absint( $id ),
+				'hash'       => LWPS_Snapshot::hash( array( 'remote_id' => absint( $id ) ) ),
+				'attributes' => array(),
+			);
+		}
+		usort( $variations, static function ( $a, $b ) { return strcmp( $a['uid'], $b['uid'] ); } );
+		return $variations;
 	}
 
 	private function attribute_key_map( array $rows ) {

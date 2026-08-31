@@ -41,7 +41,10 @@ final class LWPS_Analyzer {
 
 		$state['total'] = isset( $response['total'] ) ? (int) $response['total'] : 0;
 		foreach ( isset( $response['items'] ) ? $response['items'] : array() as $remote ) {
-			$status = self::analyze_item( $remote );
+			$status = self::analyze_item( $remote, $client );
+			if ( is_wp_error( $status ) ) {
+				return $status;
+			}
 			++$state['processed'];
 			if ( $status ) {
 				++$state['changes'];
@@ -72,10 +75,13 @@ final class LWPS_Analyzer {
 		);
 	}
 
-	private static function analyze_item( array $remote ) {
+	private static function analyze_item( array $remote, LWPS_Api_Client $client ) {
 		$product_id = LWPS_Identity::find( $remote['uid'], 'product' );
 		if ( ! $product_id ) {
-			$product_id = self::link_existing_product( $remote );
+			$product_id = self::link_existing_product( $remote, $client );
+			if ( is_wp_error( $product_id ) ) {
+				return $product_id;
+			}
 		}
 		$product    = $product_id ? wc_get_product( $product_id ) : false;
 
@@ -96,11 +102,24 @@ final class LWPS_Analyzer {
 			return 'new';
 		}
 
-		self::link_existing_variations( $product, isset( $remote['variations'] ) ? $remote['variations'] : array() );
+		if ( self::remote_variations_loaded( $remote ) ) {
+			self::link_existing_variations( $product, isset( $remote['variations'] ) ? $remote['variations'] : array() );
+		}
 
 		$local      = LWPS_Snapshot::manifest( $product );
 		$local_hash = $local ? $local['full_hash'] : '';
 		$is_locked  = 'yes' === get_post_meta( $product_id, '_lwps_local_lock', true );
+
+		if ( self::needs_full_variation_manifest( $product, $remote, $local ) ) {
+			$loaded_remote = self::load_full_manifest( $client, $remote );
+			if ( is_wp_error( $loaded_remote ) ) {
+				return $loaded_remote;
+			}
+			$remote = $loaded_remote;
+			self::link_existing_variations( $product, isset( $remote['variations'] ) ? $remote['variations'] : array() );
+			$local      = LWPS_Snapshot::manifest( $product );
+			$local_hash = $local ? $local['full_hash'] : '';
+		}
 
 		$remote_variations = wp_list_pluck( isset( $remote['variations'] ) ? $remote['variations'] : array(), 'hash', 'uid' );
 		$local_variations  = $local ? wp_list_pluck( $local['variations'], 'hash', 'uid' ) : array();
@@ -136,7 +155,7 @@ final class LWPS_Analyzer {
 		return $status;
 	}
 
-	private static function link_existing_product( array $remote ) {
+	private static function link_existing_product( array &$remote, LWPS_Api_Client $client ) {
 		$slug = isset( $remote['slug'] ) ? sanitize_title( $remote['slug'] ) : '';
 		if ( ! $slug ) {
 			return 0;
@@ -162,6 +181,14 @@ final class LWPS_Analyzer {
 			return 0;
 		}
 
+		if ( ! self::remote_variations_loaded( $remote ) && ! empty( $remote['variation_count'] ) && $product->is_type( 'variable' ) ) {
+			$loaded_remote = self::load_full_manifest( $client, $remote );
+			if ( is_wp_error( $loaded_remote ) ) {
+				return $loaded_remote;
+			}
+			$remote = $loaded_remote;
+		}
+
 		$current_uid = get_post_meta( $product->get_id(), LWPS_Identity::META_KEY, true );
 		if ( wp_is_uuid( $current_uid ) && $current_uid !== $remote['uid'] && get_post_meta( $product->get_id(), '_lwps_last_donor_hash', true ) ) {
 			return 0;
@@ -172,8 +199,51 @@ final class LWPS_Analyzer {
 			return 0;
 		}
 
-		self::link_existing_variations( $product, isset( $remote['variations'] ) ? $remote['variations'] : array() );
+		if ( self::remote_variations_loaded( $remote ) ) {
+			self::link_existing_variations( $product, isset( $remote['variations'] ) ? $remote['variations'] : array() );
+		}
 		return $product->get_id();
+	}
+
+	private static function remote_variations_loaded( array $remote ) {
+		return ! array_key_exists( 'variations_loaded', $remote ) || ! empty( $remote['variations_loaded'] );
+	}
+
+	private static function needs_full_variation_manifest( WC_Product $product, array $remote, $local ) {
+		if ( self::remote_variations_loaded( $remote ) || empty( $remote['variation_count'] ) || ! $product->is_type( 'variable' ) ) {
+			return false;
+		}
+
+		if ( ! $local ) {
+			return true;
+		}
+
+		$remote_variations = wp_list_pluck( isset( $remote['variations'] ) ? $remote['variations'] : array(), 'hash', 'uid' );
+		$local_variations  = wp_list_pluck( isset( $local['variations'] ) ? $local['variations'] : array(), 'hash', 'uid' );
+		$remote_uids       = array_keys( $remote_variations );
+		$local_uids        = array_keys( $local_variations );
+
+		if ( ! $remote_uids ) {
+			return true;
+		}
+
+		return (bool) $local_uids && ! array_intersect( $remote_uids, $local_uids );
+	}
+
+	private static function load_full_manifest( LWPS_Api_Client $client, array $remote ) {
+		if ( empty( $remote['uid'] ) ) {
+			return new WP_Error( 'lwps_invalid_uid', __( 'Invalid synchronization UUID.', 'lux-woo-product-sync' ) );
+		}
+
+		$payload = $client->product_payload( $remote['uid'], isset( $remote['remote_id'] ) ? absint( $remote['remote_id'] ) : 0 );
+		if ( is_wp_error( $payload ) ) {
+			return $payload;
+		}
+		if ( empty( $payload['manifest'] ) || ! is_array( $payload['manifest'] ) ) {
+			return new WP_Error( 'lwps_invalid_product', __( 'The donor product payload is incomplete.', 'lux-woo-product-sync' ) );
+		}
+
+		return $payload['manifest'];
 	}
 
 	private static function link_existing_variations( WC_Product $product, array $remote_variations ) {

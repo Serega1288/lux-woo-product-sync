@@ -131,15 +131,11 @@ final class LWPS_Api_Client {
 		$adapter = new LWPS_WC_Adapter( $this->url, $this->wc_category_map() );
 		$items   = array();
 		foreach ( $response['body'] as $product ) {
-			$variations = 'variable' === ( isset( $product['type'] ) ? $product['type'] : '' ) ? $this->wc_variations( (int) $product['id'] ) : array();
-			if ( is_wp_error( $variations ) ) {
-				return $variations;
+			$manifest = $adapter->manifest( $product );
+			if ( is_wp_error( $manifest ) ) {
+				return $manifest;
 			}
-			$full = $adapter->full( $product, $variations );
-			if ( is_wp_error( $full ) ) {
-				return $full;
-			}
-			$items[] = $full['manifest'];
+			$items[] = $manifest;
 		}
 
 		$total       = isset( $response['headers']['total'] ) && $response['headers']['total'] ? (int) $response['headers']['total'] : ( ( $page - 1 ) * $per_page + count( $items ) );
