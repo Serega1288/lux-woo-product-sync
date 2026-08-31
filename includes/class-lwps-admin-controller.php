@@ -129,7 +129,8 @@ final class LWPS_Admin_Controller {
 		$status   = sanitize_key( $request->get_param( 'status' ) );
 		$operation = sanitize_key( $request->get_param( 'operation' ) );
 		$search   = sanitize_text_field( $request->get_param( 'search' ) );
-		$catalog  = in_array( $status, array( 'existing', 'all_catalog' ), true ) || ( 'locked' === $status && in_array( $operation, array( 'update_main', 'update_variations' ), true ) );
+		$catalog_operations = array( 'update_main', 'update_variations', 'delete_variations' );
+		$catalog  = in_array( $status, array( 'existing', 'all_catalog', 'variation_removed' ), true ) || ( 'locked' === $status && in_array( $operation, $catalog_operations, true ) );
 		$table    = $wpdb->prefix . ( $catalog ? 'lwps_catalog' : 'lwps_changes' );
 		$where    = array( '1=1' );
 		$values   = array();
@@ -139,16 +140,25 @@ final class LWPS_Admin_Controller {
 				$where[] = 'local_product_id > 0';
 			} elseif ( 'locked' === $status ) {
 				$where[] = 'is_locked = 1';
+			} elseif ( 'variation_removed' === $status ) {
+				$where[] = 'local_product_id > 0';
+				$where[] = 'variation_removed > 0';
 			}
-			if ( in_array( $operation, array( 'update_main', 'update_variations' ), true ) ) {
+			if ( in_array( $operation, $catalog_operations, true ) ) {
 				$where[] = 'local_product_id > 0';
 			}
-			if ( 'update_variations' === $operation ) {
+			if ( in_array( $operation, array( 'update_variations', 'delete_variations' ), true ) ) {
 				$where[] = "product_type = 'variable'";
+			}
+			if ( 'delete_variations' === $operation ) {
+				$where[] = 'variation_removed > 0';
 			}
 		} elseif ( in_array( $status, array( 'variation_added', 'missing_variations' ), true ) ) {
 			$where[] = 'local_product_id > 0';
 			$where[] = 'variation_added > 0';
+		} elseif ( 'variation_removed' === $status ) {
+			$where[] = 'local_product_id > 0';
+			$where[] = 'variation_removed > 0';
 		} elseif ( 'locked' === $status ) {
 			$where[] = 'is_locked = 1';
 		} elseif ( in_array( $status, array( 'new', 'update', 'local_changes' ), true ) ) {
@@ -165,7 +175,7 @@ final class LWPS_Admin_Controller {
 		$count_sql = "SELECT COUNT(*) FROM {$table} WHERE {$where_sql}";
 		$total     = (int) $wpdb->get_var( $values ? $wpdb->prepare( $count_sql, $values ) : $count_sql );
 		$offset    = ( $page - 1 ) * $per_page;
-		$list_sql  = "SELECT * FROM {$table} WHERE {$where_sql} ORDER BY FIELD(change_status, 'local_changes', 'locked', 'new', 'update', 'missing_variations', 'existing'), product_name ASC LIMIT %d OFFSET %d";
+		$list_sql  = "SELECT * FROM {$table} WHERE {$where_sql} ORDER BY FIELD(change_status, 'local_changes', 'locked', 'new', 'update', 'missing_variations', 'extra_variations', 'existing'), product_name ASC LIMIT %d OFFSET %d";
 		$list_args = array_merge( $values, array( $per_page, $offset ) );
 		$rows      = $wpdb->get_results( $wpdb->prepare( $list_sql, $list_args ), ARRAY_A );
 
@@ -251,7 +261,7 @@ final class LWPS_Admin_Controller {
 			if ( $locked && 'locked' !== $change['change_status'] ) {
 				$details['unlocked_status'] = $change['change_status'];
 			}
-			if ( ! $locked && isset( $details['unlocked_status'] ) && in_array( $details['unlocked_status'], array( 'update', 'missing_variations', 'local_changes' ), true ) ) {
+			if ( ! $locked && isset( $details['unlocked_status'] ) && in_array( $details['unlocked_status'], array( 'update', 'missing_variations', 'extra_variations', 'local_changes' ), true ) ) {
 				$status = $details['unlocked_status'];
 			}
 			$wpdb->update(
@@ -266,7 +276,15 @@ final class LWPS_Admin_Controller {
 				array( '%d' )
 			);
 		}
+		$catalog_row = $wpdb->get_row( $wpdb->prepare( "SELECT variation_added, variation_removed FROM {$catalog} WHERE local_product_id = %d LIMIT 1", $product_id ) );
 		$catalog_status = $locked ? 'locked' : 'existing';
+		if ( ! $locked && $catalog_row ) {
+			if ( (int) $catalog_row->variation_added > 0 ) {
+				$catalog_status = 'missing_variations';
+			} elseif ( (int) $catalog_row->variation_removed > 0 ) {
+				$catalog_status = 'extra_variations';
+			}
+		}
 		$wpdb->update(
 			$catalog,
 			array(
@@ -417,6 +435,7 @@ final class LWPS_Admin_Controller {
 			'new'                => 0,
 			'update'             => 0,
 			'missing_variations' => 0,
+			'extra_variations'   => 0,
 			'local_changes'      => 0,
 			'locked'             => 0,
 			'existing'           => 0,
@@ -437,7 +456,7 @@ final class LWPS_Admin_Controller {
 			$result['variation_removed'] += (int) $row['variation_removed'];
 		}
 		$catalog_rows = $wpdb->get_row(
-			"SELECT COUNT(*) total, SUM(CASE WHEN local_product_id > 0 THEN 1 ELSE 0 END) existing, SUM(CASE WHEN local_product_id > 0 AND product_type = 'variable' THEN 1 ELSE 0 END) variable_products, SUM(CASE WHEN is_locked = 1 THEN 1 ELSE 0 END) locked FROM {$catalog}",
+			"SELECT COUNT(*) total, SUM(CASE WHEN local_product_id > 0 THEN 1 ELSE 0 END) existing, SUM(CASE WHEN local_product_id > 0 AND product_type = 'variable' THEN 1 ELSE 0 END) variable_products, SUM(CASE WHEN is_locked = 1 THEN 1 ELSE 0 END) locked, SUM(CASE WHEN local_product_id > 0 THEN variation_removed ELSE 0 END) variation_removed FROM {$catalog}",
 			ARRAY_A
 		);
 		if ( $catalog_rows ) {
@@ -446,6 +465,7 @@ final class LWPS_Admin_Controller {
 			$result['catalog_variable'] = (int) $catalog_rows['variable_products'];
 			$result['catalog_locked']   = (int) $catalog_rows['locked'];
 			$result['existing']         = (int) $catalog_rows['existing'];
+			$result['variation_removed'] = (int) $catalog_rows['variation_removed'];
 		}
 		return $result;
 	}

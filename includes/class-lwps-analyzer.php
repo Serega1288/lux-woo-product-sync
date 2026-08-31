@@ -128,19 +128,30 @@ final class LWPS_Analyzer {
 		$removed           = array_diff_key( $local_variations, $remote_variations );
 
 		if ( ! $added ) {
-			self::store_catalog(
-				$remote,
-				array(
-					'status'            => $is_locked ? 'locked' : 'existing',
-					'local_product_id'  => $product_id,
-					'local_hash'        => $local_hash,
-					'local_variations'  => count( $local_variations ),
-					'variation_added'   => 0,
-					'variation_updated' => 0,
-					'variation_removed' => count( $removed ),
-					'is_locked'         => $is_locked ? 1 : 0,
-				)
+			$removed_count    = count( $removed );
+			$unlocked_status  = $removed_count ? 'extra_variations' : 'existing';
+			$status           = $is_locked ? 'locked' : $unlocked_status;
+			$local            = array(
+				'status'            => $status,
+				'local_product_id'  => $product_id,
+				'local_hash'        => $local_hash,
+				'local_variations'  => count( $local_variations ),
+				'variation_added'   => 0,
+				'variation_updated' => 0,
+				'variation_removed' => $removed_count,
+				'is_locked'         => $is_locked ? 1 : 0,
+				'unlocked_status'   => $unlocked_status,
+				'variation_uids'    => array(
+					'added'   => array(),
+					'updated' => array(),
+					'removed' => array_keys( $removed ),
+				),
 			);
+			self::store_catalog( $remote, $local );
+			if ( $removed_count ) {
+				self::store_change( $remote, $local );
+				return $status;
+			}
 			return '';
 		}
 
@@ -368,6 +379,7 @@ final class LWPS_Analyzer {
 			'new'                => 0,
 			'update'             => 0,
 			'missing_variations' => 0,
+			'extra_variations'   => 0,
 			'local_changes'      => 0,
 			'locked'             => 0,
 			'existing'           => 0,
@@ -386,7 +398,7 @@ final class LWPS_Analyzer {
 		$catalog = $wpdb->prefix . 'lwps_catalog';
 		$changes = $wpdb->prefix . 'lwps_changes';
 		$row     = $wpdb->get_row(
-			"SELECT COUNT(*) total, SUM(CASE WHEN local_product_id > 0 THEN 1 ELSE 0 END) existing, SUM(CASE WHEN local_product_id > 0 AND product_type = 'variable' THEN 1 ELSE 0 END) variable_products, SUM(CASE WHEN is_locked = 1 THEN 1 ELSE 0 END) locked FROM {$catalog}",
+			"SELECT COUNT(*) total, SUM(CASE WHEN local_product_id > 0 THEN 1 ELSE 0 END) existing, SUM(CASE WHEN local_product_id > 0 AND product_type = 'variable' THEN 1 ELSE 0 END) variable_products, SUM(CASE WHEN is_locked = 1 THEN 1 ELSE 0 END) locked, SUM(CASE WHEN local_product_id > 0 THEN variation_removed ELSE 0 END) variation_removed FROM {$catalog}",
 			ARRAY_A
 		);
 		if ( $row ) {
@@ -395,15 +407,15 @@ final class LWPS_Analyzer {
 			$summary['catalog_variable'] = (int) $row['variable_products'];
 			$summary['catalog_locked']   = (int) $row['locked'];
 			$summary['existing']         = (int) $row['existing'];
+			$summary['variation_removed'] = (int) $row['variation_removed'];
 		}
 		$variation_row = $wpdb->get_row(
-			"SELECT SUM(CASE WHEN local_product_id > 0 THEN variation_added ELSE 0 END) variation_added, SUM(CASE WHEN local_product_id > 0 THEN variation_updated ELSE 0 END) variation_updated, SUM(CASE WHEN local_product_id > 0 THEN variation_removed ELSE 0 END) variation_removed FROM {$changes}",
+			"SELECT SUM(CASE WHEN local_product_id > 0 THEN variation_added ELSE 0 END) variation_added, SUM(CASE WHEN local_product_id > 0 THEN variation_updated ELSE 0 END) variation_updated FROM {$changes}",
 			ARRAY_A
 		);
 		if ( $variation_row ) {
 			$summary['variation_added']   = (int) $variation_row['variation_added'];
 			$summary['variation_updated'] = (int) $variation_row['variation_updated'];
-			$summary['variation_removed'] = (int) $variation_row['variation_removed'];
 		}
 		return wp_parse_args( $summary, self::empty_summary() );
 	}

@@ -150,6 +150,7 @@ final class LWPS_Admin_Page {
 						<option value=""><?php esc_html_e( 'Потребують дії', 'lux-woo-product-sync' ); ?></option>
 						<option value="new"><?php esc_html_e( 'Нові товари', 'lux-woo-product-sync' ); ?></option>
 						<option value="variation_added"><?php esc_html_e( 'Є варіації для додавання', 'lux-woo-product-sync' ); ?></option>
+						<option value="variation_removed"><?php esc_html_e( 'Є зайві варіації', 'lux-woo-product-sync' ); ?></option>
 						<option value="existing"><?php esc_html_e( 'Існуючі товари', 'lux-woo-product-sync' ); ?></option>
 						<option value="all_catalog"><?php esc_html_e( 'Усі товари донора', 'lux-woo-product-sync' ); ?></option>
 						<option value="locked"><?php esc_html_e( 'Заблоковані', 'lux-woo-product-sync' ); ?></option>
@@ -172,6 +173,7 @@ final class LWPS_Admin_Page {
 						<option value="update_main"><?php esc_html_e( 'Оновити основні дані', 'lux-woo-product-sync' ); ?></option>
 						<option value="update_variations"><?php esc_html_e( 'Оновити варіації', 'lux-woo-product-sync' ); ?></option>
 						<option value="add_variations"><?php esc_html_e( 'Додати відсутні варіації', 'lux-woo-product-sync' ); ?></option>
+						<option value="delete_variations"><?php esc_html_e( 'Видалити зайві варіації', 'lux-woo-product-sync' ); ?></option>
 					</select></label>
 					<label class="lwps-check" title="<?php esc_attr_e( 'Дозволити вибраній операції змінювати заблоковані товари', 'lux-woo-product-sync' ); ?>"><input type="checkbox" id="lwps-force-locked"><span><?php esc_html_e( 'Примусово опрацювати заблоковані', 'lux-woo-product-sync' ); ?></span></label>
 					<div class="lwps-action-buttons">

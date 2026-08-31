@@ -43,6 +43,9 @@ final class LWPS_Jobs {
 				case 'add_variations':
 					$summary['variations_added'] += (int) $row->variation_added;
 					break;
+				case 'delete_variations':
+					$summary['variations_deleted'] += (int) $row->variation_removed;
+					break;
 			}
 		}
 
@@ -211,6 +214,9 @@ final class LWPS_Jobs {
 				if ( ! empty( $result['in_sync'] ) ) {
 					$wpdb->delete( $wpdb->prefix . 'lwps_changes', array( 'remote_uid' => $item->remote_uid ), array( '%s' ) );
 				}
+				if ( 'delete_variations' === $item->operation ) {
+					self::record_deleted_variations( $item, $result );
+				}
 			}
 		}
 
@@ -368,6 +374,10 @@ final class LWPS_Jobs {
 			} elseif ( 'update_variations' === $operation ) {
 				$where[] = 'local_product_id > 0';
 				$where[] = "product_type = 'variable'";
+			} elseif ( 'delete_variations' === $operation ) {
+				$where[] = 'local_product_id > 0';
+				$where[] = "product_type = 'variable'";
+				$where[] = 'variation_removed > 0';
 			} else {
 				return array();
 			}
@@ -377,6 +387,9 @@ final class LWPS_Jobs {
 			if ( in_array( $status, array( 'variation_added', 'missing_variations' ), true ) ) {
 				$where[] = 'local_product_id > 0';
 				$where[] = 'variation_added > 0';
+			} elseif ( 'variation_removed' === $status ) {
+				$where[] = 'local_product_id > 0';
+				$where[] = 'variation_removed > 0';
 			} elseif ( 'locked' === $status ) {
 				$where[] = 'is_locked = 1';
 			} elseif ( in_array( $status, array( 'existing', 'all_catalog' ), true ) && self::uses_catalog( $operation ) ) {
@@ -404,7 +417,7 @@ final class LWPS_Jobs {
 	}
 
 	private static function uses_catalog( $operation ) {
-		return in_array( $operation, array( 'update_main', 'update_variations' ), true );
+		return in_array( $operation, array( 'update_main', 'update_variations', 'delete_variations' ), true );
 	}
 
 	private static function eligible( $row, $operation, array $options ) {
@@ -423,6 +436,68 @@ final class LWPS_Jobs {
 		if ( 'update_variations' === $operation ) {
 			return (bool) $row->local_product_id && 'variable' === $row->product_type;
 		}
+		if ( 'delete_variations' === $operation ) {
+			return (bool) $row->local_product_id && 'variable' === $row->product_type && (int) $row->variation_removed > 0;
+		}
 		return false;
+	}
+
+	private static function record_deleted_variations( $item, array $result ) {
+		global $wpdb;
+		$catalog = $wpdb->prefix . 'lwps_catalog';
+		$changes = $wpdb->prefix . 'lwps_changes';
+		$catalog_row = $wpdb->get_row( $wpdb->prepare( "SELECT is_locked FROM {$catalog} WHERE remote_uid = %s LIMIT 1", $item->remote_uid ) );
+		$variation_added = isset( $result['variation_added'] ) ? (int) $result['variation_added'] : 0;
+		$variation_removed = isset( $result['variation_removed'] ) ? (int) $result['variation_removed'] : 0;
+		$catalog_status = self::status_for_variation_counts( $variation_added, $variation_removed, $catalog_row && (int) $catalog_row->is_locked > 0 );
+
+		$catalog_update = array(
+			'change_status'      => $catalog_status,
+			'variation_added'    => $variation_added,
+			'variation_updated'  => 0,
+			'variation_removed'  => $variation_removed,
+			'local_variations'   => isset( $result['local_variations'] ) ? (int) $result['local_variations'] : 0,
+			'local_hash'         => isset( $result['local_hash'] ) ? sanitize_text_field( $result['local_hash'] ) : '',
+			'analyzed_at'        => current_time( 'mysql', true ),
+		);
+		$wpdb->update(
+			$catalog,
+			$catalog_update,
+			array( 'remote_uid' => $item->remote_uid ),
+			array( '%s', '%d', '%d', '%d', '%d', '%s', '%s' ),
+			array( '%s' )
+		);
+
+		$change = $wpdb->get_row( $wpdb->prepare( "SELECT id, is_locked FROM {$changes} WHERE remote_uid = %s LIMIT 1", $item->remote_uid ) );
+		if ( ! $change ) {
+			return;
+		}
+		if ( $variation_added > 0 || $variation_removed > 0 ) {
+			$change_status = self::status_for_variation_counts( $variation_added, $variation_removed, (int) $change->is_locked > 0 );
+			$change_update = $catalog_update;
+			$change_update['change_status'] = $change_status;
+			$wpdb->update(
+				$changes,
+				$change_update,
+				array( 'id' => (int) $change->id ),
+				array( '%s', '%d', '%d', '%d', '%d', '%s', '%s' ),
+				array( '%d' )
+			);
+		} else {
+			$wpdb->delete( $changes, array( 'id' => (int) $change->id ), array( '%d' ) );
+		}
+	}
+
+	private static function status_for_variation_counts( $variation_added, $variation_removed, $is_locked ) {
+		if ( $is_locked ) {
+			return 'locked';
+		}
+		if ( (int) $variation_added > 0 ) {
+			return 'missing_variations';
+		}
+		if ( (int) $variation_removed > 0 ) {
+			return 'extra_variations';
+		}
+		return 'existing';
 	}
 }

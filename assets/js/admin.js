@@ -28,6 +28,7 @@
 		new: 'Новий товар',
 		update: 'Позиція',
 		missing_variations: 'Додати варіації',
+		extra_variations: 'Зайві варіації',
 		local_changes: 'Позиція',
 		existing: 'Існуючий товар',
 		locked: 'Заблокований',
@@ -41,6 +42,7 @@
 		update_main: 'Оновлення основних даних',
 		update_variations: 'Оновлення варіацій',
 		add_variations: 'Додавання варіацій',
+		delete_variations: 'Видалення зайвих варіацій',
 	};
 
 	const $ = (selector, root = document) => root.querySelector(selector);
@@ -154,6 +156,7 @@
 		const metrics = [
 			['new', 'Нові товари', 'products', 'is-green'],
 			['variation_added', 'Нові варіації', 'screenoptions', 'is-violet'],
+			['variation_removed', 'Зайві варіації', 'trash', 'is-red'],
 			['catalog_existing', 'Існуючі товари', 'archive', 'is-blue'],
 			['catalog_locked', 'Заблоковані', 'lock', 'is-red'],
 		];
@@ -163,7 +166,7 @@
 	}
 
 	function actionRequiredCount(summary = {}) {
-		return ['new', 'missing_variations', 'locked']
+		return ['new', 'missing_variations', 'extra_variations', 'locked']
 			.reduce((sum, key) => sum + Number(summary[key] || 0), 0);
 	}
 
@@ -384,6 +387,7 @@
 	function productContext(item) {
 		if (item.change_status === 'new') return 'Новий товар · буде створено на цьому сайті';
 		if (item.change_status === 'missing_variations') return 'Товар уже є на сайті';
+		if (item.change_status === 'extra_variations') return 'Товар має локальні варіації, яких немає у донора';
 		if (item.change_status === 'locked') return 'Існуючий товар · звичайні операції його пропустять';
 		if (item.change_status === 'existing') return 'Існуючий товар · доступний для ручного оновлення';
 		if (item.change_status === 'local_changes') return 'Існуючий товар';
@@ -393,6 +397,7 @@
 	function operationForItem(item) {
 		if (item.change_status === 'new' && Number(item.local_product_id) === 0) return 'import';
 		if (item.change_status === 'missing_variations' || Number(item.variation_added) > 0) return 'add_variations';
+		if (item.change_status === 'extra_variations' || Number(item.variation_removed) > 0) return 'delete_variations';
 		return '';
 	}
 
@@ -409,6 +414,8 @@
 		const status = $('#lwps-status-filter').value;
 		if (status === 'variation_added' || status === 'missing_variations') {
 			recommended = 'add_variations';
+		} else if (status === 'variation_removed') {
+			recommended = 'delete_variations';
 		} else if (scope === 'selected') {
 			const selectedRows = state.changes.filter((item) => state.selected.has(item.remote_uid));
 			if (selectedRows.length === state.selected.size) recommended = singleRecommendedOperation(selectedRows);
@@ -418,7 +425,7 @@
 
 		if (recommended && recommended !== operation.value) {
 			operation.value = recommended;
-			operation.dispatchEvent(new Event('change'));
+			renderSelection();
 		}
 	}
 
@@ -438,6 +445,7 @@
 
 	function alignOperationWithFilter(status) {
 		if (status === 'variation_added') return setOperation('add_variations');
+		if (status === 'variation_removed') return setOperation('delete_variations');
 		if (status === 'new') return setOperation('import');
 		if ((status === 'existing' || status === 'all_catalog') && ['import', 'add_variations'].includes($('#lwps-operation').value)) {
 			return setOperation('update_main');
@@ -456,9 +464,11 @@
 		if (operation === 'update_main' || operation === 'update_variations') {
 			if (!manualCatalog) next = 'existing';
 		} else if (operation === 'import') {
-			if (manualCatalog || current === 'variation_added') next = 'new';
+			if (manualCatalog || current === 'variation_added' || current === 'variation_removed') next = 'new';
 		} else if (operation === 'add_variations') {
-			if (manualCatalog || current === 'new') next = 'variation_added';
+			if (manualCatalog || current === 'new' || current === 'variation_removed') next = 'variation_added';
+		} else if (operation === 'delete_variations') {
+			if (current !== 'variation_removed') next = 'variation_removed';
 		}
 
 		if (!next || next === current) return false;
@@ -481,7 +491,7 @@
 			return `<div class="lwps-variation-summary"><strong>${title}</strong><small>${detail}</small></div>`;
 		}
 
-		if (item.change_status === 'missing_variations') {
+		if (item.change_status === 'missing_variations' && !updated && !removed) {
 			return `<div class="lwps-variation-summary"><strong>Додати ${added} ${pluralize(added, 'відсутню варіацію', 'відсутні варіації', 'відсутніх варіацій')}</strong><small>Товар уже є · на сайті ${local}, у донора ${donor}</small></div>`;
 		}
 
@@ -566,6 +576,7 @@
 			update_main: 'Оновити всі товари у фільтрі',
 			update_variations: 'Оновити всі варіації у фільтрі',
 			add_variations: 'Додати всі відсутні варіації',
+			delete_variations: 'Видалити всі зайві варіації',
 		};
 		const previewAll = $('#lwps-preview-all');
 		$('#lwps-selected-count').textContent = state.selected.size;
@@ -670,6 +681,7 @@
 				['Буде оновлено товарів', summary.products_updated, false],
 				['Буде додано варіацій', summary.variations_added, false],
 				['Буде оновлено варіацій', summary.variations_updated, false],
+				['Буде видалено варіацій', summary.variations_deleted, true],
 				['Буде пропущено', Number(summary.skipped_locked || 0) + Number(summary.skipped_invalid || 0), true],
 			];
 			$('#lwps-preview-scope').textContent = scope === 'all'

@@ -3,7 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 
 final class LWPS_Product_Sync {
-	const OPERATIONS = array( 'import', 'update_main', 'update_variations', 'add_variations' );
+	const OPERATIONS = array( 'import', 'update_main', 'update_variations', 'add_variations', 'delete_variations' );
 
 	public static function execute( $remote_uid, $operation, array $options = array() ) {
 		$remote_uid = LWPS_Identity::sanitize_uid( $remote_uid );
@@ -39,6 +39,7 @@ final class LWPS_Product_Sync {
 			}
 		}
 
+		$variations_deleted = 0;
 		try {
 			$product = $product_id ? wc_get_product( $product_id ) : false;
 			if ( ! $product ) {
@@ -52,8 +53,8 @@ final class LWPS_Product_Sync {
 				LWPS_Identity::assign( $product_id, $remote_uid );
 			}
 
-			if ( in_array( $operation, array( 'update_variations', 'add_variations' ), true ) && ! ( $product instanceof WC_Product_Variable ) && 'variable' === $remote['product']['type'] ) {
-				return new WP_Error( 'lwps_product_type_mismatch', __( 'The local product is not variable, so variations cannot be updated for it.', 'lux-woo-product-sync' ) );
+			if ( in_array( $operation, array( 'update_variations', 'add_variations', 'delete_variations' ), true ) && ! ( $product instanceof WC_Product_Variable ) && 'variable' === $remote['product']['type'] ) {
+				return new WP_Error( 'lwps_product_type_mismatch', __( 'The local product is not variable, so variations cannot be changed for it.', 'lux-woo-product-sync' ) );
 			}
 
 			if ( in_array( $operation, array( 'import', 'update_variations', 'add_variations' ), true ) ) {
@@ -64,8 +65,16 @@ final class LWPS_Product_Sync {
 				}
 				self::apply_variations( $product, isset( $remote['variations'] ) ? $remote['variations'] : array(), $operation, $options );
 			}
+			if ( 'delete_variations' === $operation ) {
+				$variations_deleted = self::delete_missing_variations( $product, isset( $remote['variations'] ) ? $remote['variations'] : array() );
+			}
 
 			$product = wc_get_product( $product_id );
+			$variation_state = array(
+				'added'   => 0,
+				'removed' => 0,
+				'local'   => 0,
+			);
 			if ( $product ) {
 				if ( $product instanceof WC_Product_Variable ) {
 					WC_Product_Variable::sync( $product_id );
@@ -77,14 +86,20 @@ final class LWPS_Product_Sync {
 				update_post_meta( $product_id, '_lwps_last_donor_hash', $remote['manifest']['full_hash'] );
 				update_post_meta( $product_id, '_lwps_last_synced_at', current_time( 'mysql', true ) );
 				delete_post_meta( $product_id, '_lwps_initial_mismatch' );
+				$variation_state = self::variation_uid_state( $product, isset( $remote['variations'] ) ? $remote['variations'] : array() );
 			}
 
 			return array(
-				'product_id' => $product_id,
-				'created'    => $is_new,
-				'operation'  => $operation,
-				'in_sync'    => isset( $local_hash ) && hash_equals( (string) $remote['manifest']['full_hash'], (string) $local_hash ),
-				'edit_url'   => get_edit_post_link( $product_id, 'raw' ),
+				'product_id'          => $product_id,
+				'created'             => $is_new,
+				'operation'           => $operation,
+				'variations_deleted'  => $variations_deleted,
+				'variation_added'     => $variation_state['added'],
+				'variation_removed'   => $variation_state['removed'],
+				'local_variations'    => $variation_state['local'],
+				'local_hash'          => isset( $local_hash ) ? $local_hash : '',
+				'in_sync'             => isset( $local_hash ) && hash_equals( (string) $remote['manifest']['full_hash'], (string) $local_hash ),
+				'edit_url'            => get_edit_post_link( $product_id, 'raw' ),
 			);
 		} catch ( Throwable $error ) {
 			return new WP_Error( 'lwps_sync_failed', $error->getMessage() );
@@ -237,6 +252,68 @@ final class LWPS_Product_Sync {
 			LWPS_Identity::assign( $variation_id, $data['uid'] );
 		}
 
+	}
+
+	private static function delete_missing_variations( WC_Product $product, array $remote_variations ) {
+		if ( ! ( $product instanceof WC_Product_Variable ) ) {
+			return 0;
+		}
+
+		$remote_uids = array();
+		foreach ( $remote_variations as $variation ) {
+			$uid = isset( $variation['uid'] ) ? LWPS_Identity::sanitize_uid( $variation['uid'] ) : '';
+			if ( $uid ) {
+				$remote_uids[ $uid ] = true;
+			}
+		}
+
+		$deleted = 0;
+		foreach ( $product->get_children() as $variation_id ) {
+			$uid = LWPS_Identity::sanitize_uid( get_post_meta( $variation_id, LWPS_Identity::META_KEY, true ) );
+			if ( ! $uid || isset( $remote_uids[ $uid ] ) ) {
+				continue;
+			}
+
+			$result = wp_trash_post( $variation_id );
+			if ( ! $result ) {
+				throw new RuntimeException( __( 'The local extra variation could not be deleted.', 'lux-woo-product-sync' ) );
+			}
+			++$deleted;
+		}
+
+		return $deleted;
+	}
+
+	private static function variation_uid_state( WC_Product $product, array $remote_variations ) {
+		if ( ! ( $product instanceof WC_Product_Variable ) ) {
+			return array(
+				'added'   => 0,
+				'removed' => 0,
+				'local'   => 0,
+			);
+		}
+
+		$remote_uids = array();
+		foreach ( $remote_variations as $variation ) {
+			$uid = isset( $variation['uid'] ) ? LWPS_Identity::sanitize_uid( $variation['uid'] ) : '';
+			if ( $uid ) {
+				$remote_uids[ $uid ] = true;
+			}
+		}
+
+		$local_uids = array();
+		foreach ( $product->get_children() as $variation_id ) {
+			$uid = LWPS_Identity::sanitize_uid( get_post_meta( $variation_id, LWPS_Identity::META_KEY, true ) );
+			if ( $uid ) {
+				$local_uids[ $uid ] = true;
+			}
+		}
+
+		return array(
+			'added'   => count( array_diff_key( $remote_uids, $local_uids ) ),
+			'removed' => count( array_diff_key( $local_uids, $remote_uids ) ),
+			'local'   => count( $local_uids ),
+		);
 	}
 
 	private static function apply_variation( WC_Product_Variation $variation, array $data, WC_Product $product ) {
