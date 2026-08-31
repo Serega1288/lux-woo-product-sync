@@ -300,7 +300,14 @@ final class LWPS_WC_Adapter {
 
 	private function attribute_lookup_key( $value ) {
 		$value = (string) $value;
-		return 0 === strpos( $value, 'id:' ) ? $value : sanitize_title( $value );
+		if ( 0 === strpos( $value, 'id:' ) ) {
+			return $value;
+		}
+		$value = sanitize_title( $value );
+		if ( 0 === strpos( $value, 'pa_' ) ) {
+			return 'pa_' . str_replace( '_', '-', substr( $value, 3 ) );
+		}
+		return str_replace( '_', '-', $value );
 	}
 
 	private function terms( array $rows, $hierarchical ) {

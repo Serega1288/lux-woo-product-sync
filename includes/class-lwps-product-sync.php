@@ -50,7 +50,7 @@ final class LWPS_Product_Sync {
 			if ( in_array( $operation, array( 'import', 'update_variations', 'add_variations', 'overwrite' ), true ) ) {
 				if ( in_array( $operation, array( 'update_variations', 'add_variations' ), true ) && $product instanceof WC_Product_Variable ) {
 					$product->set_attributes( self::attributes( isset( $remote['product']['attributes'] ) ? $remote['product']['attributes'] : array() ) );
-					$product->set_default_attributes( isset( $remote['product']['default_attributes'] ) && is_array( $remote['product']['default_attributes'] ) ? $remote['product']['default_attributes'] : array() );
+					$product->set_default_attributes( self::variation_attributes( isset( $remote['product']['default_attributes'] ) && is_array( $remote['product']['default_attributes'] ) ? $remote['product']['default_attributes'] : array(), $product ) );
 					$product->save();
 				}
 				self::apply_variations( $product, isset( $remote['variations'] ) ? $remote['variations'] : array(), $operation, $options );
@@ -132,7 +132,7 @@ final class LWPS_Product_Sync {
 		$product->set_category_ids( self::ensure_terms( 'product_cat', isset( $data['categories'] ) ? $data['categories'] : array() ) );
 		$product->set_tag_ids( self::ensure_terms( 'product_tag', isset( $data['tags'] ) ? $data['tags'] : array() ) );
 		$product->set_attributes( self::attributes( isset( $data['attributes'] ) ? $data['attributes'] : array() ) );
-		$product->set_default_attributes( isset( $data['default_attributes'] ) && is_array( $data['default_attributes'] ) ? $data['default_attributes'] : array() );
+		$product->set_default_attributes( self::variation_attributes( isset( $data['default_attributes'] ) && is_array( $data['default_attributes'] ) ? $data['default_attributes'] : array(), $product ) );
 
 		if ( ! empty( $data['shipping_class'] ) ) {
 			$shipping_ids = self::ensure_terms(
@@ -197,13 +197,16 @@ final class LWPS_Product_Sync {
 				throw new RuntimeException( __( 'A variation UUID is already linked to another product.', 'lux-woo-product-sync' ) );
 			}
 			if ( 'add_variations' === $operation && $variation ) {
+				self::apply_variation_attributes( $variation, $data, $product );
+				$variation->save();
+				LWPS_Identity::assign( $variation->get_id(), $data['uid'] );
 				continue;
 			}
 			if ( ! $variation ) {
 				$variation = new WC_Product_Variation();
 				$variation->set_parent_id( $product->get_id() );
 			}
-			self::apply_variation( $variation, $data, $product->get_id() );
+			self::apply_variation( $variation, $data, $product );
 			$variation_id = $variation->save();
 			LWPS_Identity::assign( $variation_id, $data['uid'] );
 		}
@@ -218,7 +221,8 @@ final class LWPS_Product_Sync {
 		}
 	}
 
-	private static function apply_variation( WC_Product_Variation $variation, array $data, $parent_id ) {
+	private static function apply_variation( WC_Product_Variation $variation, array $data, WC_Product $product ) {
+		$parent_id = $product->get_id();
 		$variation->set_parent_id( $parent_id );
 		$variation->set_status( isset( $data['status'] ) ? wc_clean( $data['status'] ) : 'publish' );
 		$variation->set_description( isset( $data['description'] ) ? wp_kses_post( $data['description'] ) : '' );
@@ -237,11 +241,16 @@ final class LWPS_Product_Sync {
 		$variation->set_virtual( ! empty( $data['virtual'] ) );
 		$variation->set_downloadable( ! empty( $data['downloadable'] ) );
 		$variation->set_menu_order( isset( $data['menu_order'] ) ? (int) $data['menu_order'] : 0 );
-		$variation->set_attributes( isset( $data['attributes'] ) && is_array( $data['attributes'] ) ? array_map( 'wc_clean', $data['attributes'] ) : array() );
+		self::apply_variation_attributes( $variation, $data, $product );
 
 		$image_id = self::sideload_image( isset( $data['image'] ) ? $data['image'] : array(), $parent_id );
 		$variation->set_image_id( $image_id );
 		self::apply_meta( $variation, isset( $data['meta'] ) ? $data['meta'] : array() );
+	}
+
+	private static function apply_variation_attributes( WC_Product_Variation $variation, array $data, WC_Product $product ) {
+		$variation->set_parent_id( $product->get_id() );
+		$variation->set_attributes( self::variation_attributes( isset( $data['attributes'] ) && is_array( $data['attributes'] ) ? $data['attributes'] : array(), $product ) );
 	}
 
 	private static function attributes( array $rows ) {
@@ -279,6 +288,152 @@ final class LWPS_Product_Sync {
 			$attributes[] = $attribute;
 		}
 		return $attributes;
+	}
+
+	private static function variation_attributes( array $rows, WC_Product $product ) {
+		$context    = self::variation_attribute_context( $product );
+		$attributes = array();
+
+		foreach ( $rows as $key => $value ) {
+			$raw_key   = $key;
+			$raw_value = $value;
+			if ( is_array( $value ) ) {
+				$raw_key   = ! empty( $value['slug'] ) ? $value['slug'] : ( isset( $value['name'] ) ? $value['name'] : $key );
+				$raw_value = array_key_exists( 'option', $value ) ? $value['option'] : ( array_key_exists( 'value', $value ) ? $value['value'] : '' );
+			}
+
+			$attribute_key = self::variation_attribute_key( $raw_key, $context );
+			if ( '' === $attribute_key ) {
+				continue;
+			}
+
+			$attribute = isset( $context['attributes'][ $attribute_key ] ) ? $context['attributes'][ $attribute_key ] : array();
+			$attributes[ $attribute_key ] = self::variation_attribute_value( $raw_value, $attribute, $attribute_key );
+		}
+
+		ksort( $attributes );
+		return $attributes;
+	}
+
+	private static function variation_attribute_context( WC_Product $product ) {
+		$context = array(
+			'aliases'    => array(),
+			'attributes' => array(),
+		);
+
+		foreach ( $product->get_attributes() as $attribute ) {
+			if ( ! ( $attribute instanceof WC_Product_Attribute ) || ! $attribute->get_variation() ) {
+				continue;
+			}
+
+			$name = $attribute->get_name();
+			$key  = sanitize_title( $name );
+			if ( $attribute->is_taxonomy() && 0 !== strpos( $key, 'pa_' ) ) {
+				$key = wc_attribute_taxonomy_name( $key );
+			}
+
+			$options = self::variation_attribute_options( $attribute, $key );
+			$context['attributes'][ $key ] = array(
+				'taxonomy' => $attribute->is_taxonomy(),
+				'options'  => $options,
+			);
+
+			$candidates = array( $name, $key, wc_attribute_label( $name, $product ) );
+			if ( 0 === strpos( $key, 'pa_' ) ) {
+				$candidates[] = preg_replace( '/^pa_/', '', $key );
+			}
+			foreach ( array_unique( array_filter( $candidates ) ) as $candidate ) {
+				$context['aliases'][ self::variation_attribute_lookup_key( $candidate ) ] = $key;
+			}
+		}
+
+		return $context;
+	}
+
+	private static function variation_attribute_options( WC_Product_Attribute $attribute, $attribute_key ) {
+		$options = array();
+
+		if ( $attribute->is_taxonomy() ) {
+			foreach ( $attribute->get_terms() as $term ) {
+				self::add_variation_attribute_option( $options, $term->slug, $term->slug );
+				self::add_variation_attribute_option( $options, $term->name, $term->slug );
+			}
+			foreach ( $attribute->get_options() as $option ) {
+				$term = is_numeric( $option ) ? get_term( (int) $option, $attribute_key ) : get_term_by( 'slug', sanitize_title( $option ), $attribute_key );
+				if ( $term && ! is_wp_error( $term ) ) {
+					self::add_variation_attribute_option( $options, $term->slug, $term->slug );
+					self::add_variation_attribute_option( $options, $term->name, $term->slug );
+				}
+			}
+			return $options;
+		}
+
+		foreach ( $attribute->get_options() as $option ) {
+			self::add_variation_attribute_option( $options, $option, (string) $option );
+		}
+		return $options;
+	}
+
+	private static function add_variation_attribute_option( array &$options, $candidate, $value ) {
+		$key = self::variation_attribute_lookup_key( $candidate );
+		if ( '' !== $key ) {
+			$options[ $key ] = (string) $value;
+		}
+	}
+
+	private static function variation_attribute_key( $key, array $context ) {
+		$lookup = self::variation_attribute_lookup_key( $key );
+		if ( isset( $context['aliases'][ $lookup ] ) ) {
+			return $context['aliases'][ $lookup ];
+		}
+
+		return $lookup;
+	}
+
+	private static function variation_attribute_value( $value, array $attribute, $attribute_key ) {
+		if ( is_array( $value ) ) {
+			$value = array_key_exists( 'option', $value ) ? $value['option'] : ( array_key_exists( 'value', $value ) ? $value['value'] : '' );
+		}
+
+		$value = is_scalar( $value ) ? trim( (string) $value ) : '';
+		if ( '' === $value ) {
+			return '';
+		}
+
+		$lookup = self::variation_attribute_lookup_key( $value );
+		if ( ! empty( $attribute['options'][ $lookup ] ) ) {
+			return $attribute['options'][ $lookup ];
+		}
+
+		if ( ! empty( $attribute['taxonomy'] ) || 0 === strpos( $attribute_key, 'pa_' ) ) {
+			$term = term_exists( sanitize_title( $value ), $attribute_key );
+			if ( ! $term ) {
+				$term = get_term_by( 'name', wp_strip_all_tags( $value ), $attribute_key );
+			}
+			if ( $term && ! is_wp_error( $term ) ) {
+				$term_id = is_array( $term ) ? (int) $term['term_id'] : (int) $term->term_id;
+				$term    = get_term( $term_id, $attribute_key );
+				if ( $term && ! is_wp_error( $term ) ) {
+					return $term->slug;
+				}
+			}
+
+			return sanitize_title( $value );
+		}
+
+		return wc_clean( $value );
+	}
+
+	private static function variation_attribute_lookup_key( $value ) {
+		$value = is_scalar( $value ) ? (string) $value : '';
+		if ( 0 === strpos( $value, 'attribute_' ) ) {
+			$value = substr( $value, 10 );
+		}
+		$value = sanitize_title( $value );
+		if ( 0 === strpos( $value, 'pa_' ) ) {
+			return 'pa_' . str_replace( '_', '-', substr( $value, 3 ) );
+		}
+		return str_replace( '_', '-', $value );
 	}
 
 	private static function ensure_attribute_taxonomy( $taxonomy_name, $label ) {
