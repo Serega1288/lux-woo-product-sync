@@ -5,6 +5,7 @@ defined( 'ABSPATH' ) || exit;
 final class LWPS_WC_Adapter {
 	private $source_url;
 	private $categories;
+	private $attribute_keys = array();
 
 	public function __construct( $source_url, array $categories = array() ) {
 		$this->source_url = untrailingslashit( (string) $source_url );
@@ -16,6 +17,7 @@ final class LWPS_WC_Adapter {
 			return new WP_Error( 'lwps_invalid_product', __( 'The donor returned a product without an ID.', 'lux-woo-product-sync' ) );
 		}
 
+		$this->attribute_keys = $this->attribute_key_map( isset( $product['attributes'] ) && is_array( $product['attributes'] ) ? $product['attributes'] : array() );
 		$core       = $this->product( $product );
 		$normalized = array();
 		foreach ( $variations as $variation ) {
@@ -110,7 +112,7 @@ final class LWPS_WC_Adapter {
 	private function variation( array $data ) {
 		$attributes = array();
 		foreach ( isset( $data['attributes'] ) && is_array( $data['attributes'] ) ? $data['attributes'] : array() as $attribute ) {
-			$key = ! empty( $attribute['slug'] ) ? $attribute['slug'] : ( isset( $attribute['name'] ) ? $attribute['name'] : '' );
+			$key = $this->attribute_key( $attribute );
 			if ( '' !== $key ) {
 				$attributes[ sanitize_title( $key ) ] = 0 === strpos( sanitize_title( $key ), 'pa_' ) ? sanitize_title( isset( $attribute['option'] ) ? $attribute['option'] : '' ) : ( isset( $attribute['option'] ) ? (string) $attribute['option'] : '' );
 			}
@@ -146,7 +148,7 @@ final class LWPS_WC_Adapter {
 		$data = array();
 		foreach ( $rows as $row ) {
 			$taxonomy = ! empty( $row['id'] ) || ( ! empty( $row['slug'] ) && 0 === strpos( $row['slug'], 'pa_' ) );
-			$name     = $taxonomy && ! empty( $row['slug'] ) ? sanitize_title( $row['slug'] ) : ( isset( $row['name'] ) ? (string) $row['name'] : '' );
+			$name     = $this->normalized_attribute_name( $row );
 			$options  = array();
 			foreach ( isset( $row['options'] ) && is_array( $row['options'] ) ? $row['options'] : array() as $option ) {
 				$options[] = array( 'name' => (string) $option, 'slug' => sanitize_title( $option ) );
@@ -169,7 +171,7 @@ final class LWPS_WC_Adapter {
 	private function default_attributes( array $rows ) {
 		$data = array();
 		foreach ( $rows as $row ) {
-			$key = ! empty( $row['slug'] ) ? $row['slug'] : ( isset( $row['name'] ) ? $row['name'] : '' );
+			$key = $this->attribute_key( $row );
 			if ( '' !== $key ) {
 				$key = sanitize_title( $key );
 				$data[ $key ] = 0 === strpos( $key, 'pa_' ) ? sanitize_title( isset( $row['option'] ) ? $row['option'] : '' ) : ( isset( $row['option'] ) ? (string) $row['option'] : '' );
@@ -177,6 +179,77 @@ final class LWPS_WC_Adapter {
 		}
 		ksort( $data );
 		return $data;
+	}
+
+	private function attribute_key_map( array $rows ) {
+		$map = array();
+		foreach ( $rows as $row ) {
+			$name = $this->normalized_attribute_name( $row );
+			if ( '' === $name ) {
+				continue;
+			}
+
+			$candidates = array( $name );
+			if ( ! empty( $row['id'] ) ) {
+				$candidates[] = 'id:' . absint( $row['id'] );
+			}
+			if ( ! empty( $row['slug'] ) ) {
+				$candidates[] = $row['slug'];
+			}
+			if ( ! empty( $row['name'] ) ) {
+				$candidates[] = $row['name'];
+			}
+			if ( 0 === strpos( $name, 'pa_' ) ) {
+				$candidates[] = preg_replace( '/^pa_/', '', $name );
+			}
+
+			foreach ( array_unique( array_filter( $candidates ) ) as $candidate ) {
+				$map[ $this->attribute_lookup_key( $candidate ) ] = $name;
+			}
+		}
+		return $map;
+	}
+
+	private function attribute_key( array $row ) {
+		$candidates = array();
+		if ( ! empty( $row['id'] ) ) {
+			$candidates[] = 'id:' . absint( $row['id'] );
+		}
+		if ( ! empty( $row['slug'] ) ) {
+			$candidates[] = $row['slug'];
+		}
+		if ( ! empty( $row['name'] ) ) {
+			$candidates[] = $row['name'];
+		}
+
+		foreach ( $candidates as $candidate ) {
+			$lookup = $this->attribute_lookup_key( $candidate );
+			if ( isset( $this->attribute_keys[ $lookup ] ) ) {
+				return $this->attribute_keys[ $lookup ];
+			}
+		}
+
+		return $this->normalized_attribute_name( $row );
+	}
+
+	private function normalized_attribute_name( array $row ) {
+		$taxonomy = ! empty( $row['id'] ) || ( ! empty( $row['slug'] ) && 0 === strpos( sanitize_title( $row['slug'] ), 'pa_' ) );
+		$name     = $taxonomy && ! empty( $row['slug'] ) ? sanitize_title( $row['slug'] ) : ( isset( $row['name'] ) ? (string) $row['name'] : '' );
+		if ( '' === $name ) {
+			return '';
+		}
+
+		if ( ! $taxonomy ) {
+			return $name;
+		}
+
+		$name = sanitize_title( $name );
+		return 0 === strpos( $name, 'pa_' ) ? $name : wc_attribute_taxonomy_name( $name );
+	}
+
+	private function attribute_lookup_key( $value ) {
+		$value = (string) $value;
+		return 0 === strpos( $value, 'id:' ) ? $value : sanitize_title( $value );
 	}
 
 	private function terms( array $rows, $hierarchical ) {

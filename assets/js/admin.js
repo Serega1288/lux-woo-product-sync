@@ -385,6 +385,38 @@
 		return 'Існуючий товар';
 	}
 
+	function operationForItem(item) {
+		if (item.change_status === 'new' && Number(item.local_product_id) === 0) return 'import';
+		if (item.change_status === 'missing_variations' || Number(item.variation_added) > 0) return 'add_variations';
+		return '';
+	}
+
+	function singleRecommendedOperation(items) {
+		const operations = new Set(items.map(operationForItem).filter(Boolean));
+		return operations.size === 1 ? Array.from(operations)[0] : '';
+	}
+
+	function alignOperationWithScope(scope) {
+		const operation = $('#lwps-operation');
+		if (!operation || operation.value !== 'import') return;
+
+		let recommended = '';
+		const status = $('#lwps-status-filter').value;
+		if (status === 'variation_added' || status === 'missing_variations') {
+			recommended = 'add_variations';
+		} else if (scope === 'selected') {
+			const selectedRows = state.changes.filter((item) => state.selected.has(item.remote_uid));
+			if (selectedRows.length === state.selected.size) recommended = singleRecommendedOperation(selectedRows);
+		} else if (state.totalChanges > 0 && state.totalChanges === state.changes.length) {
+			recommended = singleRecommendedOperation(state.changes);
+		}
+
+		if (recommended && recommended !== operation.value) {
+			operation.value = recommended;
+			operation.dispatchEvent(new Event('change'));
+		}
+	}
+
 	function renderVariationSummary(item) {
 		const local = Number(item.local_variations);
 		const donor = Number(item.donor_variations);
@@ -566,6 +598,7 @@
 		const button = scope === 'all' ? $('#lwps-preview-all') : $('#lwps-preview');
 		setBusy(button, true);
 		try {
+			alignOperationWithScope(scope);
 			state.preview = operationPayload(scope);
 			const data = await api('/preview', { method: 'POST', body: state.preview });
 			const summary = data.summary || {};

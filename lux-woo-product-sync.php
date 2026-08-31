@@ -2,7 +2,7 @@
 /**
  * Plugin Name: LUX Woo Product Sync
  * Description: Controlled product and variation synchronization between one WooCommerce donor and one recipient site.
- * Version: 1.2.5
+ * Version: 1.2.6
  * Author: LUX
  * Text Domain: lux-woo-product-sync
  * Requires PHP: 7.4
@@ -11,7 +11,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'LWPS_VERSION', '1.2.5' );
+define( 'LWPS_VERSION', '1.2.6' );
 define( 'LWPS_FILE', __FILE__ );
 define( 'LWPS_PATH', plugin_dir_path( __FILE__ ) );
 define( 'LWPS_URL', plugin_dir_url( __FILE__ ) );
