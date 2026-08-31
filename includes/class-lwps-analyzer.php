@@ -8,6 +8,7 @@ final class LWPS_Analyzer {
 	public static function start() {
 		global $wpdb;
 		$wpdb->query( 'DELETE FROM ' . $wpdb->prefix . 'lwps_changes' );
+		$wpdb->query( 'DELETE FROM ' . $wpdb->prefix . 'lwps_catalog' );
 
 		$state = array(
 			'token'      => wp_generate_uuid4(),
@@ -53,6 +54,7 @@ final class LWPS_Analyzer {
 				}
 			}
 		}
+		$state['summary'] = self::with_catalog_summary( $state['summary'] );
 
 		$total_pages = isset( $response['total_pages'] ) ? max( 1, (int) $response['total_pages'] ) : 1;
 		$done        = (int) $state['page'] >= $total_pages;
@@ -86,19 +88,18 @@ final class LWPS_Analyzer {
 		$product    = $product_id ? wc_get_product( $product_id ) : false;
 
 		if ( ! $product ) {
-			self::store_change(
-				$remote,
-				array(
-					'status'            => 'new',
-					'local_product_id'  => 0,
-					'local_hash'        => '',
-					'local_variations'  => 0,
-					'variation_added'   => isset( $remote['variation_count'] ) ? (int) $remote['variation_count'] : 0,
-					'variation_updated' => 0,
-					'variation_removed' => 0,
-					'is_locked'         => 0,
-				)
+			$local = array(
+				'status'            => 'new',
+				'local_product_id'  => 0,
+				'local_hash'        => '',
+				'local_variations'  => 0,
+				'variation_added'   => isset( $remote['variation_count'] ) ? (int) $remote['variation_count'] : 0,
+				'variation_updated' => 0,
+				'variation_removed' => 0,
+				'is_locked'         => 0,
 			);
+			self::store_catalog( $remote, $local );
+			self::store_change( $remote, $local );
 			return 'new';
 		}
 
@@ -127,31 +128,43 @@ final class LWPS_Analyzer {
 		$removed           = array_diff_key( $local_variations, $remote_variations );
 
 		if ( ! $added ) {
+			self::store_catalog(
+				$remote,
+				array(
+					'status'            => $is_locked ? 'locked' : 'existing',
+					'local_product_id'  => $product_id,
+					'local_hash'        => $local_hash,
+					'local_variations'  => count( $local_variations ),
+					'variation_added'   => 0,
+					'variation_updated' => 0,
+					'variation_removed' => count( $removed ),
+					'is_locked'         => $is_locked ? 1 : 0,
+				)
+			);
 			return '';
 		}
 
 		$unlocked_status = 'missing_variations';
 		$status          = $is_locked ? 'locked' : $unlocked_status;
 
-		self::store_change(
-			$remote,
-			array(
-				'status'            => $status,
-				'local_product_id'  => $product_id,
-				'local_hash'        => $local_hash,
-				'local_variations'  => count( $local_variations ),
-				'variation_added'   => count( $added ),
-				'variation_updated' => 0,
-				'variation_removed' => count( $removed ),
-				'is_locked'         => $is_locked ? 1 : 0,
-				'unlocked_status'   => $unlocked_status,
-				'variation_uids'    => array(
-					'added'   => array_keys( $added ),
-					'updated' => array(),
-					'removed' => array_keys( $removed ),
-				),
-			)
+		$local = array(
+			'status'            => $status,
+			'local_product_id'  => $product_id,
+			'local_hash'        => $local_hash,
+			'local_variations'  => count( $local_variations ),
+			'variation_added'   => count( $added ),
+			'variation_updated' => 0,
+			'variation_removed' => count( $removed ),
+			'is_locked'         => $is_locked ? 1 : 0,
+			'unlocked_status'   => $unlocked_status,
+			'variation_uids'    => array(
+				'added'   => array_keys( $added ),
+				'updated' => array(),
+				'removed' => array_keys( $removed ),
+			),
 		);
+		self::store_catalog( $remote, $local );
+		self::store_change( $remote, $local );
 		return $status;
 	}
 
@@ -279,19 +292,40 @@ final class LWPS_Analyzer {
 		}
 	}
 
+	private static function store_catalog( array $remote, array $local ) {
+		global $wpdb;
+		$table = $wpdb->prefix . 'lwps_catalog';
+		$details = self::details( $remote, $local );
+
+		$wpdb->replace(
+			$table,
+			array(
+				'remote_uid'          => sanitize_text_field( $remote['uid'] ),
+				'remote_id'           => isset( $remote['remote_id'] ) ? absint( $remote['remote_id'] ) : 0,
+				'local_product_id'    => (int) $local['local_product_id'],
+				'product_name'        => isset( $remote['name'] ) ? sanitize_text_field( $remote['name'] ) : '',
+				'product_slug'        => isset( $remote['slug'] ) ? sanitize_title( $remote['slug'] ) : '',
+				'product_type'        => isset( $remote['type'] ) ? sanitize_key( $remote['type'] ) : 'simple',
+				'change_status'       => sanitize_key( $local['status'] ),
+				'donor_hash'          => isset( $remote['full_hash'] ) ? sanitize_text_field( $remote['full_hash'] ) : '',
+				'local_hash'          => sanitize_text_field( $local['local_hash'] ),
+				'donor_variations'    => isset( $remote['variation_count'] ) ? (int) $remote['variation_count'] : 0,
+				'local_variations'    => (int) $local['local_variations'],
+				'variation_added'     => (int) $local['variation_added'],
+				'variation_updated'   => (int) $local['variation_updated'],
+				'variation_removed'   => (int) $local['variation_removed'],
+				'is_locked'           => (int) $local['is_locked'],
+				'details_json'        => wp_json_encode( $details ),
+				'analyzed_at'         => current_time( 'mysql', true ),
+			),
+			array( '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s' )
+		);
+	}
+
 	private static function store_change( array $remote, array $local ) {
 		global $wpdb;
 		$table = $wpdb->prefix . 'lwps_changes';
-		$details = array(
-			'remote_id'      => isset( $remote['remote_id'] ) ? absint( $remote['remote_id'] ) : 0,
-			'core_hash'      => isset( $remote['core_hash'] ) ? $remote['core_hash'] : '',
-			'unlocked_status' => isset( $local['unlocked_status'] ) ? sanitize_key( $local['unlocked_status'] ) : '',
-			'variation_uids' => isset( $local['variation_uids'] ) ? $local['variation_uids'] : array(
-				'added'   => wp_list_pluck( isset( $remote['variations'] ) ? $remote['variations'] : array(), 'uid' ),
-				'updated' => array(),
-				'removed' => array(),
-			),
-		);
+		$details = self::details( $remote, $local );
 
 		$wpdb->replace(
 			$table,
@@ -316,6 +350,19 @@ final class LWPS_Analyzer {
 		);
 	}
 
+	private static function details( array $remote, array $local ) {
+		return array(
+			'remote_id'      => isset( $remote['remote_id'] ) ? absint( $remote['remote_id'] ) : 0,
+			'core_hash'      => isset( $remote['core_hash'] ) ? $remote['core_hash'] : '',
+			'unlocked_status' => isset( $local['unlocked_status'] ) ? sanitize_key( $local['unlocked_status'] ) : '',
+			'variation_uids' => isset( $local['variation_uids'] ) ? $local['variation_uids'] : array(
+				'added'   => wp_list_pluck( isset( $remote['variations'] ) ? $remote['variations'] : array(), 'uid' ),
+				'updated' => array(),
+				'removed' => array(),
+			),
+		);
+	}
+
 	private static function empty_summary() {
 		return array(
 			'new'                => 0,
@@ -323,7 +370,42 @@ final class LWPS_Analyzer {
 			'missing_variations' => 0,
 			'local_changes'      => 0,
 			'locked'             => 0,
+			'existing'           => 0,
+			'catalog_total'      => 0,
+			'catalog_existing'   => 0,
+			'catalog_variable'   => 0,
+			'catalog_locked'     => 0,
+			'variation_added'    => 0,
+			'variation_updated'  => 0,
+			'variation_removed'  => 0,
 		);
+	}
+
+	private static function with_catalog_summary( array $summary ) {
+		global $wpdb;
+		$catalog = $wpdb->prefix . 'lwps_catalog';
+		$changes = $wpdb->prefix . 'lwps_changes';
+		$row     = $wpdb->get_row(
+			"SELECT COUNT(*) total, SUM(CASE WHEN local_product_id > 0 THEN 1 ELSE 0 END) existing, SUM(CASE WHEN local_product_id > 0 AND product_type = 'variable' THEN 1 ELSE 0 END) variable_products, SUM(CASE WHEN is_locked = 1 THEN 1 ELSE 0 END) locked FROM {$catalog}",
+			ARRAY_A
+		);
+		if ( $row ) {
+			$summary['catalog_total']    = (int) $row['total'];
+			$summary['catalog_existing'] = (int) $row['existing'];
+			$summary['catalog_variable'] = (int) $row['variable_products'];
+			$summary['catalog_locked']   = (int) $row['locked'];
+			$summary['existing']         = (int) $row['existing'];
+		}
+		$variation_row = $wpdb->get_row(
+			"SELECT SUM(CASE WHEN local_product_id > 0 THEN variation_added ELSE 0 END) variation_added, SUM(CASE WHEN local_product_id > 0 THEN variation_updated ELSE 0 END) variation_updated, SUM(CASE WHEN local_product_id > 0 THEN variation_removed ELSE 0 END) variation_removed FROM {$changes}",
+			ARRAY_A
+		);
+		if ( $variation_row ) {
+			$summary['variation_added']   = (int) $variation_row['variation_added'];
+			$summary['variation_updated'] = (int) $variation_row['variation_updated'];
+			$summary['variation_removed'] = (int) $variation_row['variation_removed'];
+		}
+		return wp_parse_args( $summary, self::empty_summary() );
 	}
 
 }

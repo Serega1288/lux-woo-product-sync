@@ -67,7 +67,7 @@
 .lwps-notice.is-error { background: #fff1f1; border-color: var(--lwps-red); color: #a8323e; }
 .lwps-notice.is-info { background: #edf5ff; }
 
-.lwps-metrics { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(160px, 1fr)); }
+.lwps-metrics { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(150px, 1fr)); }
 .lwps-metric { align-items: center; border: 1px solid var(--lwps-line); display: grid; gap: 2px; grid-template-columns: 38px 1fr; min-height: 82px; padding: 12px; }
 .lwps-metric .dashicons { align-items: center; border-radius: 6px; display: flex; grid-row: 1 / 3; height: 34px; justify-content: center; width: 34px; }
 .lwps-metric strong { font-size: 22px; line-height: 1; }
@@ -112,6 +112,7 @@
 .lwps-badge.new { background: #e8f7ef; color: var(--lwps-green); }
 .lwps-badge.update, .lwps-badge.missing_variations { background: #fff3df; color: #bd671d; }
 .lwps-badge.local_changes { background: #f2ecff; color: #6741bd; }
+.lwps-badge.existing { background: #eff2f6; color: #667085; }
 .lwps-badge.locked, .lwps-badge.failed, .lwps-badge.completed_with_errors { background: #fdebed; color: var(--lwps-red); }
 .lwps-badge.success, .lwps-badge.completed { background: #e8f7ef; color: var(--lwps-green); }
 .lwps-badge.running { background: #eaf2ff; color: var(--lwps-blue); }
@@ -167,7 +168,7 @@
 .lwps-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
 @media (max-width: 1100px) {
-	.lwps-metrics { grid-template-columns: repeat(3, minmax(140px, 1fr)); }
+	.lwps-metrics { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
 	.lwps-actionbar { align-items: stretch; flex-wrap: wrap; }
 	.lwps-actionbar > strong { width: 100%; }
 	.lwps-operation-field { flex: 1 1 320px; }

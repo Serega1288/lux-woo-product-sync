@@ -29,6 +29,7 @@
 		update: 'Позиція',
 		missing_variations: 'Додати варіації',
 		local_changes: 'Позиція',
+		existing: 'Існуючий товар',
 		locked: 'Заблокований',
 		pending: 'Очікує',
 		running: 'Виконується',
@@ -40,7 +41,6 @@
 		update_main: 'Оновлення основних даних',
 		update_variations: 'Оновлення варіацій',
 		add_variations: 'Додавання варіацій',
-		overwrite: 'Повний перезапис',
 	};
 
 	const $ = (selector, root = document) => root.querySelector(selector);
@@ -154,11 +154,17 @@
 		const metrics = [
 			['new', 'Нові товари', 'products', 'is-green'],
 			['variation_added', 'Нові варіації', 'screenoptions', 'is-violet'],
-			['locked', 'Заблоковані', 'lock', 'is-red'],
+			['catalog_existing', 'Існуючі товари', 'archive', 'is-blue'],
+			['catalog_locked', 'Заблоковані', 'lock', 'is-red'],
 		];
 		$('#lwps-metrics').innerHTML = metrics.map(([key, name, icon, cls]) => `<div class="lwps-metric ${cls}"><span class="dashicons dashicons-${icon}"></span><strong>${Number(summary[key] || 0)}</strong><small>${name}</small></div>`).join('');
 		const hasAnalysis = state.analysisReady || state.analysisRunning;
 		$('#lwps-analysis-empty').hidden = hasAnalysis;
+	}
+
+	function actionRequiredCount(summary = {}) {
+		return ['new', 'missing_variations', 'locked']
+			.reduce((sum, key) => sum + Number(summary[key] || 0), 0);
 	}
 
 	function invalidateConnection() {
@@ -193,9 +199,7 @@
 			form.elements.consumer_key.placeholder = data.settings.consumer_key || 'ck_••••••••••••••••';
 			form.elements.consumer_secret.placeholder = data.settings.consumer_secret || 'cs_••••••••••••••••';
 			if (state.analysisReady) {
-				const analyzedChanges = ['new', 'missing_variations', 'locked']
-					.reduce((sum, key) => sum + Number(state.summary[key] || 0), 0);
-				setStepResult('#lwps-analysis-result', `Аналіз завершено: ${analyzedChanges} позицій`, 'success');
+				setStepResult('#lwps-analysis-result', `Аналіз завершено: ${actionRequiredCount(state.summary)} позицій, ${Number(state.summary.catalog_existing || 0)} існуючих`, 'success');
 				$('#lwps-analyze').innerHTML = '<span class="dashicons dashicons-update"></span>Повторити аналіз';
 			}
 			if (data.settings.has_consumer_key && data.settings.has_consumer_secret) {
@@ -341,7 +345,7 @@
 			state.summary = result.summary;
 			state.analysisReady = true;
 			$('#lwps-analysis-live-label').innerHTML = '<span class="dashicons dashicons-yes-alt"></span>Аналіз завершено';
-			setStepResult('#lwps-analysis-result', `Знайдено позицій: ${Number(result.changes || 0)}`, 'success');
+			setStepResult('#lwps-analysis-result', `Знайдено позицій: ${Number(result.changes || 0)}, існуючих товарів: ${Number(result.summary && result.summary.catalog_existing || 0)}`, 'success');
 			button.innerHTML = '<span class="dashicons dashicons-update"></span>Повторити аналіз';
 			updateWorkflow();
 			notice(`Аналіз завершено. Виявлено позицій: ${result.changes}.`, 'success');
@@ -381,6 +385,7 @@
 		if (item.change_status === 'new') return 'Новий товар · буде створено на цьому сайті';
 		if (item.change_status === 'missing_variations') return 'Товар уже є на сайті';
 		if (item.change_status === 'locked') return 'Існуючий товар · звичайні операції його пропустять';
+		if (item.change_status === 'existing') return 'Існуючий товар · доступний для ручного оновлення';
 		if (item.change_status === 'local_changes') return 'Існуючий товар';
 		return 'Існуючий товар';
 	}
@@ -417,6 +422,50 @@
 		}
 	}
 
+	function reloadChangesFromStart() {
+		state.page = 1;
+		state.selected.clear();
+		if (state.activeTab === 'changes') loadChanges(1);
+	}
+
+	function setOperation(value) {
+		const operation = $('#lwps-operation');
+		if (!operation || operation.value === value) return false;
+		operation.value = value;
+		operation.dispatchEvent(new Event('change'));
+		return true;
+	}
+
+	function alignOperationWithFilter(status) {
+		if (status === 'variation_added') return setOperation('add_variations');
+		if (status === 'new') return setOperation('import');
+		if ((status === 'existing' || status === 'all_catalog') && ['import', 'add_variations'].includes($('#lwps-operation').value)) {
+			return setOperation('update_main');
+		}
+		return false;
+	}
+
+	function alignFilterWithOperation(operation) {
+		const filter = $('#lwps-status-filter');
+		if (!filter) return false;
+
+		const current = filter.value;
+		const manualCatalog = current === 'existing' || current === 'all_catalog' || current === 'locked';
+		let next = '';
+
+		if (operation === 'update_main' || operation === 'update_variations') {
+			if (!manualCatalog) next = 'existing';
+		} else if (operation === 'import') {
+			if (manualCatalog || current === 'variation_added') next = 'new';
+		} else if (operation === 'add_variations') {
+			if (manualCatalog || current === 'new') next = 'variation_added';
+		}
+
+		if (!next || next === current) return false;
+		filter.value = next;
+		return true;
+	}
+
 	function renderVariationSummary(item) {
 		const local = Number(item.local_variations);
 		const donor = Number(item.donor_variations);
@@ -449,6 +498,7 @@
 			page: String(page),
 			per_page: String(config.perPage || 30),
 			status: $('#lwps-status-filter').value,
+			operation: $('#lwps-operation').value,
 			search: $('#lwps-search').value,
 		});
 		try {
@@ -467,9 +517,14 @@
 
 	function renderChanges() {
 		const body = $('#lwps-change-rows');
-		$('#lwps-total-changes').textContent = `${state.totalChanges} позицій`;
+		const filter = $('#lwps-status-filter').value;
+		const noun = (filter === 'existing' || filter === 'all_catalog') ? 'товарів' : 'позицій';
+		$('#lwps-total-changes').textContent = `${state.totalChanges} ${noun}`;
 		if (!state.changes.length) {
-			body.innerHTML = '<tr><td colspan="5"><div class="lwps-empty"><span class="dashicons dashicons-yes-alt"></span><strong>Позицій за цим фільтром немає</strong></div></td></tr>';
+			const message = filter === ''
+				? 'Автоматичних дій немає'
+				: 'Позицій за цим фільтром немає';
+			body.innerHTML = `<tr><td colspan="5"><div class="lwps-empty"><span class="dashicons dashicons-yes-alt"></span><strong>${message}</strong></div></td></tr>`;
 		} else {
 			body.innerHTML = state.changes.map((item) => {
 				const checked = state.selected.has(item.remote_uid) ? ' checked' : '';
@@ -506,13 +561,21 @@
 	function renderSelection() {
 		const selectedOnPage = state.changes.filter((item) => state.selected.has(item.remote_uid)).length;
 		const pageSelected = state.changes.length > 0 && selectedOnPage === state.changes.length;
+		const allButtonLabels = {
+			import: 'Перенести всі нові товари',
+			update_main: 'Оновити всі товари у фільтрі',
+			update_variations: 'Оновити всі варіації у фільтрі',
+			add_variations: 'Додати всі відсутні варіації',
+		};
+		const previewAll = $('#lwps-preview-all');
 		$('#lwps-selected-count').textContent = state.selected.size;
 		$('#lwps-select-all').checked = pageSelected;
 		$('#lwps-select-all').indeterminate = selectedOnPage > 0 && !pageSelected;
 		$('#lwps-select-page').disabled = state.changes.length === 0;
 		$('#lwps-select-page-label').textContent = pageSelected ? 'Зняти вибір сторінки' : 'Вибрати все на сторінці';
 		$('#lwps-preview').disabled = state.selected.size === 0;
-		$('#lwps-preview-all').disabled = state.totalChanges === 0;
+		previewAll.disabled = state.totalChanges === 0;
+		previewAll.innerHTML = `<span class="dashicons dashicons-controls-forward"></span>${allButtonLabels[$('#lwps-operation').value] || 'Опрацювати всі результати'}`;
 	}
 
 	function togglePageSelection(forceSelected) {
@@ -579,7 +642,6 @@
 			scope,
 			uids: scope === 'selected' ? Array.from(state.selected) : [],
 			operation: $('#lwps-operation').value,
-			delete_missing_variations: $('#lwps-delete-missing').checked,
 			force_locked: $('#lwps-force-locked').checked,
 			filter_status: scope === 'all' ? $('#lwps-status-filter').value : '',
 			filter_search: scope === 'all' ? $('#lwps-search').value : '',
@@ -608,7 +670,6 @@
 				['Буде оновлено товарів', summary.products_updated, false],
 				['Буде додано варіацій', summary.variations_added, false],
 				['Буде оновлено варіацій', summary.variations_updated, false],
-				['Буде видалено варіацій', summary.variations_deleted, true],
 				['Буде пропущено', Number(summary.skipped_locked || 0) + Number(summary.skipped_invalid || 0), true],
 			];
 			$('#lwps-preview-scope').textContent = scope === 'all'
@@ -743,13 +804,8 @@
 		if (state.activeJob) loadJob(state.activeJob);
 	});
 	$('#lwps-status-filter').addEventListener('change', (event) => {
-		const operation = $('#lwps-operation');
-		if (event.currentTarget.value === 'variation_added') operation.value = 'add_variations';
-		if (event.currentTarget.value === 'new') operation.value = 'import';
-		operation.dispatchEvent(new Event('change'));
-		state.page = 1;
-		state.selected.clear();
-		loadChanges(1);
+		if (alignOperationWithFilter(event.currentTarget.value)) return;
+		reloadChangesFromStart();
 	});
 	$('#lwps-search').addEventListener('input', () => {
 		window.clearTimeout(state.searchTimer);
@@ -758,11 +814,9 @@
 	$('#lwps-select-all').addEventListener('change', (event) => togglePageSelection(event.currentTarget.checked));
 	$('#lwps-select-page').addEventListener('click', () => togglePageSelection());
 	$('#lwps-operation').addEventListener('change', (event) => {
-		const overwrite = event.currentTarget.value === 'overwrite';
-		$('#lwps-delete-missing').disabled = !overwrite;
-		if (!overwrite) $('#lwps-delete-missing').checked = false;
+		alignFilterWithOperation(event.currentTarget.value);
+		reloadChangesFromStart();
 	});
-	$('#lwps-delete-missing').disabled = true;
 	$('#lwps-preview').addEventListener('click', () => preview('selected'));
 	$('#lwps-preview-all').addEventListener('click', () => preview('all'));
 	$$('.lwps-modal-close').forEach((button) => button.addEventListener('click', () => { $('#lwps-preview-modal').hidden = true; }));

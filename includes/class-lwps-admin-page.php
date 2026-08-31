@@ -147,9 +147,11 @@ final class LWPS_Admin_Page {
 				<div class="lwps-toolbar">
 					<div class="lwps-search"><span class="dashicons dashicons-search"></span><input type="search" id="lwps-search" placeholder="<?php esc_attr_e( 'Пошук товару за назвою', 'lux-woo-product-sync' ); ?>"></div>
 					<select id="lwps-status-filter">
-						<option value=""><?php esc_html_e( 'Усі позиції', 'lux-woo-product-sync' ); ?></option>
+						<option value=""><?php esc_html_e( 'Потребують дії', 'lux-woo-product-sync' ); ?></option>
 						<option value="new"><?php esc_html_e( 'Нові товари', 'lux-woo-product-sync' ); ?></option>
 						<option value="variation_added"><?php esc_html_e( 'Є варіації для додавання', 'lux-woo-product-sync' ); ?></option>
+						<option value="existing"><?php esc_html_e( 'Існуючі товари', 'lux-woo-product-sync' ); ?></option>
+						<option value="all_catalog"><?php esc_html_e( 'Усі товари донора', 'lux-woo-product-sync' ); ?></option>
 						<option value="locked"><?php esc_html_e( 'Заблоковані', 'lux-woo-product-sync' ); ?></option>
 					</select>
 					<button type="button" class="button" id="lwps-select-page"><span class="dashicons dashicons-yes"></span><span id="lwps-select-page-label"><?php esc_html_e( 'Вибрати все на сторінці', 'lux-woo-product-sync' ); ?></span></button>
@@ -170,9 +172,7 @@ final class LWPS_Admin_Page {
 						<option value="update_main"><?php esc_html_e( 'Оновити основні дані', 'lux-woo-product-sync' ); ?></option>
 						<option value="update_variations"><?php esc_html_e( 'Оновити варіації', 'lux-woo-product-sync' ); ?></option>
 						<option value="add_variations"><?php esc_html_e( 'Додати відсутні варіації', 'lux-woo-product-sync' ); ?></option>
-						<option value="overwrite"><?php esc_html_e( 'Повністю перезаписати', 'lux-woo-product-sync' ); ?></option>
 					</select></label>
-					<label class="lwps-check"><input type="checkbox" id="lwps-delete-missing"><span><?php esc_html_e( 'Видалити зайві варіації', 'lux-woo-product-sync' ); ?></span></label>
 					<label class="lwps-check" title="<?php esc_attr_e( 'Дозволити вибраній операції змінювати заблоковані товари', 'lux-woo-product-sync' ); ?>"><input type="checkbox" id="lwps-force-locked"><span><?php esc_html_e( 'Примусово опрацювати заблоковані', 'lux-woo-product-sync' ); ?></span></label>
 					<div class="lwps-action-buttons">
 						<button class="button" id="lwps-preview"><span class="dashicons dashicons-visibility"></span><?php esc_html_e( 'Перевірити вибрані', 'lux-woo-product-sync' ); ?></button>

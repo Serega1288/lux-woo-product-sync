@@ -28,7 +28,7 @@ final class LWPS_Jobs {
 			++$summary['total_items'];
 			if ( ! $row->local_product_id ) {
 				++$summary['products_created'];
-			} elseif ( in_array( $operation, array( 'update_main', 'overwrite' ), true ) ) {
+			} elseif ( 'update_main' === $operation ) {
 				++$summary['products_updated'];
 			}
 
@@ -38,17 +38,10 @@ final class LWPS_Jobs {
 					break;
 				case 'update_variations':
 					$summary['variations_added'] += (int) $row->variation_added;
-					$summary['variations_updated'] += (int) $row->variation_updated;
+					$summary['variations_updated'] += max( 0, (int) $row->donor_variations - (int) $row->variation_added );
 					break;
 				case 'add_variations':
 					$summary['variations_added'] += (int) $row->variation_added;
-					break;
-				case 'overwrite':
-					$summary['variations_added'] += $row->local_product_id ? (int) $row->variation_added : (int) $row->donor_variations;
-					$summary['variations_updated'] += $row->local_product_id ? (int) $row->variation_updated : 0;
-					if ( ! empty( $options['delete_missing_variations'] ) ) {
-						$summary['variations_deleted'] += (int) $row->variation_removed;
-					}
 					break;
 			}
 		}
@@ -113,7 +106,13 @@ final class LWPS_Jobs {
 		foreach ( $rows as $row ) {
 			$item_options = $options;
 			$details      = ! empty( $row->details_json ) ? json_decode( $row->details_json, true ) : array();
-			if ( is_array( $details ) && ! empty( $details['remote_id'] ) ) {
+			if ( ! empty( $row->local_product_id ) ) {
+				$item_options['local_product_id'] = absint( $row->local_product_id );
+			}
+			if ( isset( $row->remote_id ) && ! empty( $row->remote_id ) ) {
+				$item_options['remote_id'] = absint( $row->remote_id );
+				$item_options['_lwps_remote_id'] = absint( $row->remote_id );
+			} elseif ( is_array( $details ) && ! empty( $details['remote_id'] ) ) {
 				$item_options['remote_id'] = absint( $details['remote_id'] );
 				$item_options['_lwps_remote_id'] = absint( $details['remote_id'] );
 			}
@@ -352,8 +351,9 @@ final class LWPS_Jobs {
 
 	private static function change_rows( array $uids, $scope = 'selected', $operation = '', array $filters = array() ) {
 		global $wpdb;
-		$table = $wpdb->prefix . 'lwps_changes';
-		$uids  = array_values( array_filter( array_map( array( 'LWPS_Identity', 'sanitize_uid' ), $uids ) ) );
+		$operation = sanitize_key( $operation );
+		$table     = $wpdb->prefix . ( self::uses_catalog( $operation ) ? 'lwps_catalog' : 'lwps_changes' );
+		$uids      = array_values( array_filter( array_map( array( 'LWPS_Identity', 'sanitize_uid' ), $uids ) ) );
 		if ( 'all' === $scope ) {
 			$where  = array( '1=1' );
 			$values = array();
@@ -363,9 +363,12 @@ final class LWPS_Jobs {
 			} elseif ( 'add_variations' === $operation ) {
 				$where[] = 'local_product_id > 0';
 				$where[] = 'variation_added > 0';
-			} elseif ( in_array( $operation, array( 'update_main', 'update_variations' ), true ) ) {
+			} elseif ( 'update_main' === $operation ) {
 				$where[] = 'local_product_id > 0';
-			} elseif ( 'overwrite' !== $operation ) {
+			} elseif ( 'update_variations' === $operation ) {
+				$where[] = 'local_product_id > 0';
+				$where[] = "product_type = 'variable'";
+			} else {
 				return array();
 			}
 
@@ -376,6 +379,10 @@ final class LWPS_Jobs {
 				$where[] = 'variation_added > 0';
 			} elseif ( 'locked' === $status ) {
 				$where[] = 'is_locked = 1';
+			} elseif ( in_array( $status, array( 'existing', 'all_catalog' ), true ) && self::uses_catalog( $operation ) ) {
+				if ( 'existing' === $status ) {
+					$where[] = 'local_product_id > 0';
+				}
 			} elseif ( in_array( $status, array( 'new', 'update', 'local_changes' ), true ) ) {
 				$where[]  = 'change_status = %s';
 				$values[] = $status;
@@ -396,6 +403,10 @@ final class LWPS_Jobs {
 		return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$table} WHERE remote_uid IN ({$placeholders}) ORDER BY id ASC", $uids ) );
 	}
 
+	private static function uses_catalog( $operation ) {
+		return in_array( $operation, array( 'update_main', 'update_variations' ), true );
+	}
+
 	private static function eligible( $row, $operation, array $options ) {
 		if ( $row->is_locked && empty( $options['force_locked'] ) ) {
 			return false;
@@ -406,9 +417,12 @@ final class LWPS_Jobs {
 		if ( 'add_variations' === $operation ) {
 			return (bool) $row->local_product_id && (int) $row->variation_added > 0;
 		}
-		if ( in_array( $operation, array( 'update_main', 'update_variations' ), true ) ) {
+		if ( 'update_main' === $operation ) {
 			return (bool) $row->local_product_id;
 		}
-		return 'overwrite' === $operation;
+		if ( 'update_variations' === $operation ) {
+			return (bool) $row->local_product_id && 'variable' === $row->product_type;
+		}
+		return false;
 	}
 }

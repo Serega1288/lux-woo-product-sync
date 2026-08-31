@@ -3,7 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 
 final class LWPS_Installer {
-	const DB_VERSION = '1.0.0';
+	const DB_VERSION = '1.1.0';
 
 	public static function activate() {
 		self::create_tables();
@@ -23,6 +23,7 @@ final class LWPS_Installer {
 
 		$charset = $wpdb->get_charset_collate();
 		$changes = $wpdb->prefix . 'lwps_changes';
+		$catalog = $wpdb->prefix . 'lwps_catalog';
 		$jobs    = $wpdb->prefix . 'lwps_jobs';
 		$items   = $wpdb->prefix . 'lwps_job_items';
 
@@ -48,6 +49,36 @@ final class LWPS_Installer {
 				UNIQUE KEY remote_uid (remote_uid),
 				KEY change_status (change_status),
 				KEY local_product_id (local_product_id)
+			) {$charset};"
+		);
+
+		dbDelta(
+			"CREATE TABLE {$catalog} (
+				id bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+				remote_uid varchar(36) NOT NULL,
+				remote_id bigint(20) unsigned NOT NULL DEFAULT 0,
+				local_product_id bigint(20) unsigned NOT NULL DEFAULT 0,
+				product_name text NOT NULL,
+				product_slug varchar(200) NOT NULL DEFAULT '',
+				product_type varchar(32) NOT NULL DEFAULT 'simple',
+				change_status varchar(32) NOT NULL DEFAULT 'existing',
+				donor_hash char(64) NOT NULL DEFAULT '',
+				local_hash char(64) NOT NULL DEFAULT '',
+				donor_variations int(10) unsigned NOT NULL DEFAULT 0,
+				local_variations int(10) unsigned NOT NULL DEFAULT 0,
+				variation_added int(10) unsigned NOT NULL DEFAULT 0,
+				variation_updated int(10) unsigned NOT NULL DEFAULT 0,
+				variation_removed int(10) unsigned NOT NULL DEFAULT 0,
+				is_locked tinyint(1) unsigned NOT NULL DEFAULT 0,
+				details_json longtext NULL,
+				analyzed_at datetime NOT NULL,
+				PRIMARY KEY  (id),
+				UNIQUE KEY remote_uid (remote_uid),
+				KEY remote_id (remote_id),
+				KEY change_status (change_status),
+				KEY local_product_id (local_product_id),
+				KEY product_type (product_type),
+				KEY product_slug (product_slug)
 			) {$charset};"
 		);
 

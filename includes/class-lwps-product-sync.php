@@ -3,7 +3,7 @@
 defined( 'ABSPATH' ) || exit;
 
 final class LWPS_Product_Sync {
-	const OPERATIONS = array( 'import', 'update_main', 'update_variations', 'add_variations', 'overwrite' );
+	const OPERATIONS = array( 'import', 'update_main', 'update_variations', 'add_variations' );
 
 	public static function execute( $remote_uid, $operation, array $options = array() ) {
 		$remote_uid = LWPS_Identity::sanitize_uid( $remote_uid );
@@ -22,21 +22,30 @@ final class LWPS_Product_Sync {
 		}
 
 		$product_id = LWPS_Identity::find( $remote_uid, 'product' );
+		if ( ! $product_id && ! empty( $options['local_product_id'] ) ) {
+			$product_id = self::local_product_candidate( $options['local_product_id'], $remote_uid );
+		}
 		$is_new     = ! $product_id;
-		if ( $is_new && ! in_array( $operation, array( 'import', 'overwrite' ), true ) ) {
+		if ( $is_new && 'import' !== $operation ) {
 			return new WP_Error( 'lwps_product_missing', __( 'The product must be imported before it can be updated.', 'lux-woo-product-sync' ) );
 		}
 		if ( $product_id && 'yes' === get_post_meta( $product_id, '_lwps_local_lock', true ) && empty( $options['force_locked'] ) ) {
 			return new WP_Error( 'lwps_product_locked', __( 'The product is protected from synchronization.', 'lux-woo-product-sync' ) );
 		}
+		if ( $product_id ) {
+			$assigned = LWPS_Identity::assign( $product_id, $remote_uid );
+			if ( is_wp_error( $assigned ) ) {
+				return $assigned;
+			}
+		}
 
 		try {
 			$product = $product_id ? wc_get_product( $product_id ) : false;
-			if ( ! $product || ( 'overwrite' === $operation && $product->get_type() !== $remote['product']['type'] ) ) {
+			if ( ! $product ) {
 				$product = self::product_for_type( $remote['product']['type'], $product_id );
 			}
 
-			if ( in_array( $operation, array( 'import', 'update_main', 'overwrite' ), true ) ) {
+			if ( in_array( $operation, array( 'import', 'update_main' ), true ) ) {
 				self::apply_main( $product, $remote['product'] );
 				$product_id = $product->save();
 				self::apply_custom_taxonomies( $product_id, isset( $remote['product']['custom_taxonomies'] ) ? $remote['product']['custom_taxonomies'] : array() );
@@ -44,10 +53,10 @@ final class LWPS_Product_Sync {
 			}
 
 			if ( in_array( $operation, array( 'update_variations', 'add_variations' ), true ) && ! ( $product instanceof WC_Product_Variable ) && 'variable' === $remote['product']['type'] ) {
-				return new WP_Error( 'lwps_product_type_mismatch', __( 'Use full overwrite to convert the local product to a variable product.', 'lux-woo-product-sync' ) );
+				return new WP_Error( 'lwps_product_type_mismatch', __( 'The local product is not variable, so variations cannot be updated for it.', 'lux-woo-product-sync' ) );
 			}
 
-			if ( in_array( $operation, array( 'import', 'update_variations', 'add_variations', 'overwrite' ), true ) ) {
+			if ( in_array( $operation, array( 'import', 'update_variations', 'add_variations' ), true ) ) {
 				if ( in_array( $operation, array( 'update_variations', 'add_variations' ), true ) && $product instanceof WC_Product_Variable ) {
 					$product->set_attributes( self::attributes( isset( $remote['product']['attributes'] ) ? $remote['product']['attributes'] : array() ) );
 					$product->set_default_attributes( self::variation_attributes( isset( $remote['product']['default_attributes'] ) && is_array( $remote['product']['default_attributes'] ) ? $remote['product']['default_attributes'] : array(), $product ) );
@@ -98,6 +107,25 @@ final class LWPS_Product_Sync {
 			default:
 				return new WC_Product_Simple( $product_id );
 		}
+	}
+
+	private static function local_product_candidate( $product_id, $remote_uid ) {
+		$product_id = absint( $product_id );
+		if ( ! $product_id || 'product' !== get_post_type( $product_id ) ) {
+			return 0;
+		}
+
+		$product = wc_get_product( $product_id );
+		if ( ! $product ) {
+			return 0;
+		}
+
+		$current_uid = get_post_meta( $product_id, LWPS_Identity::META_KEY, true );
+		if ( wp_is_uuid( $current_uid ) && $current_uid !== $remote_uid && get_post_meta( $product_id, '_lwps_last_donor_hash', true ) ) {
+			return 0;
+		}
+
+		return $product_id;
 	}
 
 	private static function apply_main( WC_Product $product, array $data ) {
@@ -185,12 +213,10 @@ final class LWPS_Product_Sync {
 			return;
 		}
 
-		$remote_uids = array();
 		foreach ( $variations as $data ) {
 			if ( empty( $data['uid'] ) ) {
 				continue;
 			}
-			$remote_uids[] = $data['uid'];
 			$variation_id = LWPS_Identity::find( $data['uid'], 'product_variation' );
 			$variation    = $variation_id ? wc_get_product( $variation_id ) : false;
 			if ( $variation instanceof WC_Product_Variation && (int) $variation->get_parent_id() !== (int) $product->get_id() ) {
@@ -211,14 +237,6 @@ final class LWPS_Product_Sync {
 			LWPS_Identity::assign( $variation_id, $data['uid'] );
 		}
 
-		if ( 'overwrite' === $operation && ! empty( $options['delete_missing_variations'] ) ) {
-			foreach ( $product->get_children() as $variation_id ) {
-				$uid = get_post_meta( $variation_id, LWPS_Identity::META_KEY, true );
-				if ( $uid && ! in_array( $uid, $remote_uids, true ) ) {
-					wp_trash_post( $variation_id );
-				}
-			}
-		}
 	}
 
 	private static function apply_variation( WC_Product_Variation $variation, array $data, WC_Product $product ) {

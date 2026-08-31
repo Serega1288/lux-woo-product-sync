@@ -215,6 +215,12 @@ final class LWPS_Api_Client {
 
 	private function remote_id_for_uid( $remote_uid ) {
 		global $wpdb;
+		$catalog = $wpdb->prefix . 'lwps_catalog';
+		$remote_id = $wpdb->get_var( $wpdb->prepare( "SELECT remote_id FROM {$catalog} WHERE remote_uid = %s LIMIT 1", $remote_uid ) );
+		if ( $remote_id ) {
+			return absint( $remote_id );
+		}
+
 		$table = $wpdb->prefix . 'lwps_changes';
 		$json  = $wpdb->get_var( $wpdb->prepare( "SELECT details_json FROM {$table} WHERE remote_uid = %s LIMIT 1", $remote_uid ) );
 		$data  = $json ? json_decode( $json, true ) : array();
