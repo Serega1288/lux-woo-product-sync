@@ -137,10 +137,12 @@ final class LWPS_Analyzer {
 	}
 
 	private static function link_existing_product( array $remote ) {
-		global $wpdb;
-
 		$slug = isset( $remote['slug'] ) ? sanitize_title( $remote['slug'] ) : '';
-		$ids  = $slug ? get_posts(
+		if ( ! $slug ) {
+			return 0;
+		}
+
+		$ids = get_posts(
 			array(
 				'post_type'      => 'product',
 				'post_status'    => array( 'publish', 'private', 'draft', 'pending', 'future' ),
@@ -149,16 +151,7 @@ final class LWPS_Analyzer {
 				'fields'         => 'ids',
 				'no_found_rows'  => true,
 			)
-		) : array();
-
-		if ( 1 !== count( $ids ) && ! empty( $remote['name'] ) ) {
-			$ids = $wpdb->get_col(
-				$wpdb->prepare(
-					"SELECT ID FROM {$wpdb->posts} WHERE post_type = 'product' AND post_status NOT IN ('trash', 'auto-draft') AND post_title = %s ORDER BY ID ASC LIMIT 2",
-					wp_strip_all_tags( $remote['name'] )
-				)
-			);
-		}
+		);
 
 		if ( 1 !== count( $ids ) ) {
 			return 0;
