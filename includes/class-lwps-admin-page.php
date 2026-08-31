@@ -139,7 +139,10 @@ final class LWPS_Admin_Page {
 			<section class="lwps-panel" data-panel="changes">
 				<div class="lwps-section-head">
 					<div><span class="lwps-step">3</span><h2><?php esc_html_e( 'Позиції та дія', 'lux-woo-product-sync' ); ?></h2></div>
-					<span class="lwps-state is-info" id="lwps-total-changes">0</span>
+					<div class="lwps-section-actions">
+						<span class="lwps-state is-info" id="lwps-total-changes">0</span>
+						<button type="button" class="button" id="lwps-download-db"><span class="dashicons dashicons-download"></span><?php esc_html_e( 'Скачати БД', 'lux-woo-product-sync' ); ?></button>
+					</div>
 				</div>
 				<div class="lwps-toolbar">
 					<div class="lwps-search"><span class="dashicons dashicons-search"></span><input type="search" id="lwps-search" placeholder="<?php esc_attr_e( 'Пошук товару за назвою', 'lux-woo-product-sync' ); ?>"></div>
@@ -150,9 +153,6 @@ final class LWPS_Admin_Page {
 						<option value="locked"><?php esc_html_e( 'Заблоковані', 'lux-woo-product-sync' ); ?></option>
 					</select>
 					<button type="button" class="button" id="lwps-select-page"><span class="dashicons dashicons-yes"></span><span id="lwps-select-page-label"><?php esc_html_e( 'Вибрати все на сторінці', 'lux-woo-product-sync' ); ?></span></button>
-					<?php if ( current_user_can( 'manage_options' ) ) : ?>
-						<button type="button" class="button" id="lwps-download-db"><span class="dashicons dashicons-download"></span><?php esc_html_e( 'Скачати БД', 'lux-woo-product-sync' ); ?></button>
-					<?php endif; ?>
 					<button type="button" class="button lwps-icon-command" id="lwps-refresh" title="<?php esc_attr_e( 'Оновити список', 'lux-woo-product-sync' ); ?>" aria-label="<?php esc_attr_e( 'Оновити список', 'lux-woo-product-sync' ); ?>"><span class="dashicons dashicons-update"></span></button>
 				</div>
 				<div class="lwps-table-wrap">

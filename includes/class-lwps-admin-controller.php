@@ -269,7 +269,7 @@ final class LWPS_Admin_Controller {
 
 	private static function verify_database_download_request() {
 		check_ajax_referer( 'lwps_admin', 'nonce' );
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
 			wp_die( esc_html__( 'You are not allowed to download the database.', 'lux-woo-product-sync' ), '', array( 'response' => 403 ) );
 		}
 	}
